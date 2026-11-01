@@ -147,3 +147,30 @@ export function money(asset: Asset, amount: number) {
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
+
+export function plainError(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error);
+  const text = raw.replace(/\s+/g, " ").trim();
+  const lower = text.toLowerCase();
+  if (lower.includes("user reject") || lower.includes("user cancel") || lower.includes("user denied") || lower.includes("rejected by user")) {
+    return "You closed the wallet before approving.";
+  }
+  if (lower.includes("not on the list")) return "That account is not on your list.";
+  if (lower.includes("spending is locked")) return "Spending is locked.";
+  if (lower.includes("per-payment") || lower.includes("per payment")) return "That amount is over the limit for one payment.";
+  if (lower.includes("daily cap")) return "That would pass today’s limit.";
+  if (lower.includes("amount is empty")) return "Enter an amount greater than zero.";
+  if (lower.includes("only the owner")) return "Only the account that set the rules can change them.";
+  if (lower.includes("allowance") || lower.includes("not enough balance")) return "The limited key has run out of gas. Add it again.";
+  if (lower.includes("does not exist") || lower.includes("unknown_account")) return "That account is not on NEAR yet.";
+  if (lower.includes("failed to fetch") || lower.includes("network") || lower.includes("could not reach") || lower.includes("the chain did not answer")) {
+    return "The chain did not answer. Try again.";
+  }
+  if (lower.includes("dynamically imported")) return "The page did not finish loading. Refresh it.";
+  if (lower.includes("request uri too long")) return "The wallet could not open that request. Refresh and try again.";
+  if (lower.includes("add the limited key")) return "Add the limited key on this browser first.";
+  if (text.startsWith("The ") || text.startsWith("You ") || text.startsWith("That ") || text.startsWith("Connect ") || text.startsWith("Add ") || text.startsWith("Enter ")) {
+    return text.length > 140 ? "That did not go through. Nothing was sent." : text;
+  }
+  return "That did not go through. Nothing was sent.";
+}

@@ -4,6 +4,7 @@ import {
   evaluate,
   hashText,
   money,
+  plainError,
   shortHash,
   spentToday,
   type Asset,
@@ -120,7 +121,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
       const id = await connectWallet();
       await openAccount(id);
     } catch (error) {
-      setWalletNote(error instanceof Error ? error.message : "The wallet did not open.");
+      setWalletNote(plainError(error));
     } finally {
       setBusy(false);
     }
@@ -197,7 +198,7 @@ function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
     try {
       setBalances(await readBalances(accountId));
     } catch (error) {
-      setChainError(error instanceof Error ? error.message : "Could not read the account.");
+      setChainError(plainError(error));
     }
   }
 
@@ -412,7 +413,7 @@ function Pay() {
       setAmount("");
       setMemo("");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "The wallet did not send it.");
+      setError(plainError(error));
     } finally {
       setBusy(false);
     }
@@ -747,7 +748,7 @@ function SaveOnAccount() {
       const hash = await saveDeskOnAccount(accountId, snapshot);
       setNote(`Saved on ${accountId}. ${hash.slice(0, 8)}`);
     } catch (error) {
-      setNote(error instanceof Error ? error.message : "Not saved.");
+      setNote(plainError(error));
     } finally {
       setBusy(false);
     }
@@ -781,7 +782,7 @@ function OnChain() {
     let current = true;
     contractLive(accountId)
       .then((yes) => current && setLive(yes))
-      .catch((error: unknown) => current && setNote(error instanceof Error ? error.message : "Could not reach the chain."));
+      .catch((error: unknown) => current && setNote(plainError(error)));
     setHeld(limitedKeyStored(accountId));
     return () => {
       current = false;
@@ -802,7 +803,7 @@ function OnChain() {
       setHeld(limitedKeyStored(accountId));
       setSeen((value) => value + 1);
     } catch (error) {
-      setNote(error instanceof Error ? error.message : "The wallet did not approve it.");
+      setNote(plainError(error));
     } finally {
       setBusy(false);
     }

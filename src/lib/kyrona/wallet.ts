@@ -1,6 +1,6 @@
 import type { WalletSelector } from "@near-wallet-selector/core";
 import { contractLive, ownerKey, readChainRules, ruleArgs, rulesAccount } from "./policy";
-import type { Rules } from "./engine";
+import { plainError, type Rules } from "./engine";
 import { USDC_CONTRACT, USDC_STORAGE_DEPOSIT, needsUsdcRegistration, toUnits } from "./chain";
 import { SOCIAL, deskData, socialDeposit, type DeskSnapshot } from "./account-desk";
 
@@ -235,11 +235,11 @@ export async function showKeyLimits(accountId: string) {
   const contractId = rulesAccount(accountId);
   const pay = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, LIMITED_GAS, 0n)]).then(
     () => "The unknown account was paid. That should not happen.",
-    (error: unknown) => textOf(error),
+    (error: unknown) => plainError(error),
   );
   const transfer = await signLimited(accountId, accountId, [near.transfer(1n)]).then(
     () => "The limited key transferred NEAR. That should not happen.",
-    (error: unknown) => textOf(error),
+    () => "This key cannot transfer NEAR.",
   );
   return { pay, transfer };
 }
