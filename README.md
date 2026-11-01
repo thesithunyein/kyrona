@@ -95,6 +95,13 @@ That program is not the website. Before paying, it was refused for `outside.near
 
 The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chrome extension. MyNearWallet works in Firefox.
 
+To see the proof without connecting a wallet:
+
+1. Open [the refused payment](https://nearblocks.io/txns/BZziRt2321pBRuaWduREXmYLLFHQHshQmBi4H3cyR7fg). The status is failed, and the contract says the account is not on the list.
+2. Open [the payment from the script](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). `scripts/agent.mjs` called `pay`, and 0.01 NEAR arrived at `kyawminthat.near`.
+
+To use the desk:
+
 1. Choose **Connect**, then Meteor or MyNearWallet.
 2. On Desk, choose **Refresh**. The figures come from the chain. Meteor may hide about 0.2 NEAR as its own gas reserve. The desk shows the full balance.
 3. On Rules, add each account you pay. An account that is not on the list cannot be paid. Set the caps. **Locked** in the header stops every payment. **Open** means spending is allowed.
@@ -104,7 +111,7 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 0.79 NEAR moves. About 0.74 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
 8. **1. Create the other account** makes `vendor.<your account>` and puts it on the list. The new account can receive. It has no key, because Meteor blocks adding one. On this deployment that account is `vendor.sithunyein.near`. It is a test receiver, not the proof.
 9. **2. Add 0.2 NEAR** moves spare NEAR onto the rules account so `pay` can run more than once.
-10. **3. Run the agent** uses only the limited key in this browser. It is not a separate program. It tries `outside.near` and is refused, then pays the vendor account. The payment that matters is the later one, to `kyawminthat.near`: [5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR).
+10. **3. Run the agent** on the page uses the limited key in this browser. It is not the program in `scripts/agent.mjs`. The page button pays the vendor account. The payment that matters was signed by the script: [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2).
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 
@@ -162,6 +169,10 @@ kyrona
 ```
 
 A newer SDK imported host functions this network does not provide. The contract is pinned to `near-sdk` 5.17 so `pay` can start. A transfer is decided in `engine.ts`, and signed in `wallet.ts`. On chain, `contract/src/lib.rs` decides it again.
+
+## Built with
+
+Written for this hackathon. No earlier product was reused. The desk is TanStack Start, React, and Vite. Wallets are Meteor and MyNearWallet through `@near-wallet-selector`. The contract is Rust and `near-sdk` 5.17, pinned so it links on current mainnet. `scripts/agent.mjs` uses `@near-js`.
 
 ## Run the agent
 
