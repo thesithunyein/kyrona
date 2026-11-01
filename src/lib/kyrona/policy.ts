@@ -55,8 +55,10 @@ export async function contractLive(accountId: string) {
       account_id: rulesAccount(accountId),
     });
     return account.code_hash !== EMPTY_CODE;
-  } catch {
-    return false;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("does not exist") || message.includes("UNKNOWN_ACCOUNT")) return false;
+    throw error;
   }
 }
 

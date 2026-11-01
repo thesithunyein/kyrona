@@ -773,7 +773,9 @@ function OnChain() {
   useEffect(() => {
     if (!accountId) return;
     let current = true;
-    contractLive(accountId).then((yes) => current && setLive(yes)).catch(() => current && setLive(false));
+    contractLive(accountId)
+      .then((yes) => current && setLive(yes))
+      .catch(() => current && setNote("Could not reach the chain. Refresh the page."));
     setHeld(limitedKeyStored(accountId));
     return () => {
       current = false;
@@ -790,7 +792,7 @@ function OnChain() {
     try {
       const result = await task();
       setNote(done || (typeof result === "string" ? result : "Done."));
-      setLive(await contractLive(accountId));
+      setLive(await contractLive(accountId).catch(() => live));
       setHeld(limitedKeyStored(accountId));
     } catch (error) {
       setNote(error instanceof Error ? error.message : "The wallet did not approve it.");
@@ -804,15 +806,17 @@ function OnChain() {
       <p className="kicker">On the account</p>
       <h2 className="display mt-3 text-3xl">{accountId ? `rules.${accountId}` : "A separate rules account."}</h2>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        {live
+        {live === true
           ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
-          : "The wallet link cannot carry a contract this size. Paste the Meteor key below. It is used once in this browser and is not saved. This creates rules." +
-            (accountId ?? "yourname.near") +
-            ". About 0.79 NEAR moves there. 0.74 stays locked for the code. 0.05 can be paid out."}
+          : live === false
+            ? "The wallet link cannot carry a contract this size. Paste the Meteor key below. It is used once in this browser and is not saved. This creates rules." +
+              (accountId ?? "yourname.near") +
+              ". About 0.79 NEAR moves there. 0.74 stays locked for the code. 0.05 can be paid out."
+            : "Checking the account."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} />}
       <div className="mt-5 grid gap-2">
-        {!live && (
+        {live === false && (
           <>
             <input
               type="password"
@@ -839,7 +843,7 @@ function OnChain() {
             </button>
           </>
         )}
-        {live && (
+        {live === true && (
           <button type="button" disabled={busy} className="btn btn-ink" onClick={() => run(() => putRulesOnChain(accountId!, rules), "Rules updated.")}>
             {busy ? "Waiting for the wallet" : "Update the rules"}
           </button>
