@@ -11,9 +11,10 @@ import {
   type Proposal,
 } from "@/lib/kyrona/engine";
 import { readBalances, isNearAccount } from "@/lib/kyrona/chain";
+import { contractLive, nearLabel, readChainRules } from "@/lib/kyrona/policy";
 import { useDesk } from "@/lib/kyrona/store";
 import { openAccount } from "@/lib/kyrona/session";
-import { connectWallet, disconnectWallet, restoreWallet, saveDeskOnAccount, sendOnNear } from "@/lib/kyrona/wallet";
+import { addLimitedPayKey, connectWallet, disconnectWallet, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, restoreWallet, saveDeskOnAccount, sendOnNear, showKeyLimits } from "@/lib/kyrona/wallet";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -384,13 +385,18 @@ function Pay() {
     setBusy(true);
     setError("");
     try {
-      const txHash = await sendOnNear({
-        signerId: signer,
-        receiverId: person.account,
-        asset: active.asset,
-        amount: String(active.amount),
-        memo: active.memo,
-      });
+      const onChain = active.asset === "NEAR" && (await contractLive(signer));
+      const txHash = !onChain
+        ? await sendOnNear({
+            signerId: signer,
+            receiverId: person.account,
+            asset: active.asset,
+            amount: String(active.amount),
+            memo: active.memo,
+          })
+        : limitedKeyStored(signer)
+          ? await payWithLimitedKey(signer, person.account, String(active.amount))
+          : await payThroughWallet(signer, person.account, String(active.amount));
       record({
         id: crypto.randomUUID(),
         at: Date.now(),
@@ -539,7 +545,8 @@ function Rules() {
   }
 
   return (
-    <div className="rise grid gap-6 lg:grid-cols-2">
+    <div className="rise grid gap-6">
+      <div className="grid gap-6 lg:grid-cols-2">
       <section>
         <p className="kicker">Limits</p>
         <h1 className="display mt-3 text-4xl">The limits.</h1>
@@ -605,6 +612,8 @@ function Rules() {
         <DeskCode />
         <SaveOnAccount />
       </section>
+      </div>
+      <OnChain />
     </div>
   );
 }
@@ -750,6 +759,95 @@ function SaveOnAccount() {
       {note && <p className="text-xs text-muted">{note}</p>}
     </div>
   );
+}
+
+function OnChain() {
+  const accountId = useDesk((s) => s.accountId);
+  const rules = useDesk((s) => s.rules);
+  const [live, setLive] = useState<boolean | null>(null);
+  const [held, setHeld] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (!accountId) return;
+    let current = true;
+    contractLive(accountId).then((yes) => current && setLive(yes)).catch(() => current && setLive(false));
+    setHeld(limitedKeyStored(accountId));
+    return () => {
+      current = false;
+    };
+  }, [accountId]);
+
+  async function run(task: () => Promise<unknown>, done: string) {
+    if (!accountId) {
+      setNote("Connect a wallet first.");
+      return;
+    }
+    setBusy(true);
+    setNote("");
+    try {
+      const result = await task();
+      setNote(done || (typeof result === "string" ? result : "Done."));
+      setLive(await contractLive(accountId));
+      setHeld(limitedKeyStored(accountId));
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "The wallet did not approve it.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card p-5">
+      <p className="kicker">On the account</p>
+      <h2 className="display mt-3 text-3xl">{live ? "The rules are on the account." : "Put the rules on the account."}</h2>
+      <p className="mt-3 max-w-2xl text-sm text-muted">
+        {live
+          ? "A payment in NEAR now has to pass the list, the lock, and the caps on chain. The limited key can call pay, and nothing else."
+          : "One signature stores this list and these caps in the account. The code locks about 0.79 NEAR. That NEAR stays yours."}
+      </p>
+      {accountId && live && <ChainSummary accountId={accountId} />}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button type="button" disabled={busy} className="btn btn-ink" onClick={() => run(() => putRulesOnChain(accountId!, rules), live ? "Rules updated." : "Rules are on the account.")}>
+          {busy ? "Waiting for the wallet" : live ? "Update the rules" : "Put the rules on chain"}
+        </button>
+        <button type="button" disabled={busy || !live} className="btn btn-quiet" onClick={() => run(() => addLimitedPayKey(accountId!), held ? "Another limited key was added." : "This browser holds the limited key.")}>
+          {held ? "Limited key is here" : "Add a limited key"}
+        </button>
+        <button
+          type="button"
+          disabled={busy || !held}
+          className="btn btn-quiet"
+          onClick={() =>
+            run(async () => {
+              const result = await showKeyLimits(accountId!);
+              return `List check: ${result.pay} Direct transfer: ${result.transfer}`;
+            }, "")
+          }
+        >
+          Try to break it
+        </button>
+      </div>
+      {note && <p className="mt-3 text-sm text-muted">{note}</p>}
+    </section>
+  );
+}
+
+function ChainSummary({ accountId }: { accountId: string }) {
+  const [line, setLine] = useState("Reading the account.");
+  useEffect(() => {
+    let current = true;
+    readChainRules(accountId).then((rules) => {
+      if (!current || !rules) return;
+      const people = rules.allowed.length;
+      setLine(`${nearLabel(rules.max_per_payment)} NEAR per payment. ${nearLabel(rules.daily_cap)} NEAR a day. ${people} ${people === 1 ? "account" : "accounts"}. ${rules.open ? "Open" : "Locked"}.`);
+    });
+    return () => {
+      current = false;
+    };
+  }, [accountId]);
+  return <p className="mt-3 text-sm">{line}</p>;
 }
 
 function DeskCode() {

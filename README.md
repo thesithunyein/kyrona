@@ -84,7 +84,8 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Use Chrome and 
 3. On Rules, add each account you pay. An account that is not on the list cannot be paid. Set the caps. **Locked** in the header stops every payment. **Open** means spending is allowed.
 4. On Pay, choose the person, NEAR or USDC, and the amount. Choose **Check against my rules**.
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
-6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet. After you sign, the ledger stores the hash and the balance is read again.
+6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
+7. On Rules, **Put the rules on chain** stores the list, the caps, and the lock in the account. The code locks about 0.79 NEAR. That NEAR stays in the account. **Add a limited key** creates a key that can call `pay` and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail.
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 
@@ -92,10 +93,12 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Use Chrome and 
 
 Say this plainly, because it is the boundary of the product.
 
-- Kyrona does not hold keys and does not custody funds. Your wallet signs and broadcasts.
-- The rules are enforced before Kyrona asks for a signature. A transfer started directly in the wallet is not checked.
+- Kyrona does not hold the full-access key and does not custody a separate pool of funds.
+- Before the rules are on the account, they are enforced in the page. A transfer started directly in the wallet is not checked.
+- After **Put the rules on chain**, `pay` on the account enforces the list, the lock, and the caps. A normal transfer from Meteor still skips `pay`.
+- The limited key can call only `pay`. It cannot transfer NEAR, add a key, or deploy code. Its gas allowance is 0.05 NEAR. The secret for that key stays in this browser.
 - There is no cross-chain swap and no private computation.
-- USDC can be sent only when the account actually holds USDC. If the recipient is not registered on the USDC contract, the same signature also pays that contract’s storage deposit.
+- USDC can be sent only when the account actually holds USDC. USDC does not go through `pay`.
 
 ## In the code
 
@@ -118,7 +121,11 @@ kyrona
 │   ├── router.tsx
 │   ├── routeTree.gen.ts
 │   └── styles.css
+├── contract
+│   ├── Cargo.toml
+│   └── src/lib.rs                 The on-account rules: list, caps, lock, pay
 ├── public
+│   ├── kyrona.wasm                The contract the desk deploys, 78,569 bytes
 │   ├── logo.png
 │   ├── favicon.png
 │   ├── favicon.svg
