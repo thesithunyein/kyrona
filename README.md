@@ -85,7 +85,7 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Use Chrome and 
 4. On Pay, choose the person, NEAR or USDC, and the amount. Choose **Check against my rules**.
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
 6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
-7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not put code on the main account. About 0.84 NEAR moves. 0.79 stays locked for the code. 0.05 can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail.
+7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not put code on the main account. About 0.79 NEAR moves. 0.74 stays locked for the code. 0.05 can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail.
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 

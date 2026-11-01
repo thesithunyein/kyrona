@@ -808,7 +808,7 @@ function OnChain() {
           ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
           : "The wallet link cannot carry a contract this size. Paste the Meteor key below. It is used once in this browser and is not saved. This creates rules." +
             (accountId ?? "yourname.near") +
-            ". About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
+            ". About 0.79 NEAR moves there. 0.74 stays locked for the code. 0.05 can be paid out."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} />}
       <div className="mt-5 grid gap-2">
