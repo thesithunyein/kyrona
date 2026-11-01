@@ -1,17 +1,17 @@
 # Security
 
-Kyrona is a spending desk. It is not a custody service and it is not a smart contract.
+Kyrona is a spending desk. It does not custody your funds. The full-access key stays in your wallet.
 
 ## Threat model
 
 | | |
 |---|---|
-| Who holds the keys | Your wallet. Kyrona never asks for a seed phrase or a private key. |
-| Who can move funds | Only a signature from that wallet. |
-| What Kyrona can stop | A payment that it itself is about to send, when a rule fails. |
-| What Kyrona cannot stop | A transfer you start in Meteor, MyNearWallet, or any other app. The rules are not a restricted access key. |
+| Who holds the full-access key | Your wallet. Kyrona never asks for a seed phrase. |
+| Who can move funds | A signature from that wallet, or the limited key calling `pay` inside the rules. |
+| What the contract can stop | A call to `pay` that breaks the list, the lock, or a cap. |
+| What it cannot stop | A transfer you start directly in Meteor. That path does not call `pay`. |
 
-The checks run in the browser, against the rules you saved and the balance read from NEAR mainnet. If every check passes, the wallet receives one transaction. If any check fails, no transaction is created.
+Until you put the rules on the account, the checks run in the browser. After that, `pay` runs them on the account. A failed check does not create a transfer.
 
 ## On the account
 
@@ -25,14 +25,15 @@ The full-access key in Meteor remains. Do not delete it. A transfer it signs dir
 
 ## What gets signed
 
-- A NEAR transfer is a single `Transfer` action to the account on your list.
-- A USDC transfer is `ft_transfer` on the USDC contract. If the recipient has no storage deposit there, the same signature includes `storage_deposit` for that account first.
+- Before the contract is on the account, a NEAR payment is a single `Transfer`.
+- After it is on the account, a NEAR payment calls `pay`. The contract checks the rules, then transfers.
+- A USDC transfer is `ft_transfer` on the USDC contract. If the recipient has no storage deposit there, the same signature includes `storage_deposit` for that account first. USDC does not go through `pay`.
 - Saving the desk is one write to `social.near` under your account, key `kyrona`. That data is public, because `social.near` is public. Do not put secrets in a memo.
 
 ## What you should assume
 
 - A modified or malicious copy of this website could ask the wallet to sign something else. Check the address is [kyrona.vercel.app](https://kyrona.vercel.app), and read the wallet prompt before you approve it.
-- The per-payment cap, the daily cap, and the lock are product rules. They are not enforced by the NEAR protocol.
+- The per-payment cap, the daily cap, and the lock are enforced by `pay` only after you put the rules on the account. Until then, the page checks them.
 - Balances are read from `https://rpc.mainnet.near.org` at refresh and after a send. They can be a block behind.
 
 ## Reporting
