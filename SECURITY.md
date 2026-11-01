@@ -15,7 +15,7 @@ Until you put the rules on the account, the checks run in the browser. After tha
 
 ## On the account
 
-`contract/src/lib.rs` is the policy. **Put the rules on chain** deploys it onto your own account and initializes the list, the caps, and the lock. The code locks about 0.79 NEAR as storage. That NEAR is not spent.
+`contract/src/lib.rs` is the policy. **Put the rules on chain** creates `rules.<your account>`, deploys the code there, and copies your full-access key onto it so you still control it. Meteor blocks deploying code onto the main account. About 0.84 NEAR moves to the rules account. About 0.79 of that locks for the code. About 0.05 can be paid out. None of it is spent as a fee.
 
 `pay` refuses a locked desk, an account that is not on the list, and an amount over either cap. It then transfers from the same account.
 

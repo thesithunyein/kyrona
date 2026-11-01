@@ -1,5 +1,5 @@
 import type { WalletSelector } from "@near-wallet-selector/core";
-import { contractLive, ruleArgs } from "./policy";
+import { contractLive, ownerKey, ruleArgs, rulesAccount } from "./policy";
 import type { Rules } from "./engine";
 import { USDC_CONTRACT, USDC_STORAGE_DEPOSIT, needsUsdcRegistration, toUnits } from "./chain";
 import { SOCIAL, deskData, socialDeposit, type DeskSnapshot } from "./account-desk";
@@ -136,17 +136,34 @@ export async function putRulesOnChain(accountId: string, rules: Rules) {
   const wallet = await selector.wallet();
   const near = await actions();
   const args = ruleArgs(rules);
+  const contractId = rulesAccount(accountId);
   const live = await contractLive(accountId);
-  const wasm = live ? null : new Uint8Array(await (await fetch("/kyrona.wasm")).arrayBuffer());
   const calls = live
     ? [near.functionCall("set_rules", args, GAS, 0n)]
-    : [near.deployContract(wasm as Uint8Array), near.functionCall("new", args, GAS, 0n)];
+    : await deployActions(accountId, near, args);
   const outcome = await wallet.signAndSendTransaction({
     signerId: accountId,
-    receiverId: accountId,
+    receiverId: contractId,
     actions: calls,
   });
   return hashOf(outcome);
+}
+
+async function deployActions(
+  accountId: string,
+  near: Awaited<ReturnType<typeof actions>>,
+  args: ReturnType<typeof ruleArgs>,
+) {
+  const { PublicKey } = await import("@near-js/crypto");
+  const wasm = new Uint8Array(await (await fetch("/kyrona.wasm")).arrayBuffer());
+  const fund = BigInt(wasm.length) * 10_000_000_000_000_000_000n + 50_000_000_000_000_000_000_000n;
+  return [
+    near.createAccount(),
+    near.transfer(fund),
+    near.addKey(PublicKey.from(await ownerKey(accountId)), near.fullAccessKey()),
+    near.deployContract(wasm),
+    near.functionCall("new", args, GAS, 0n),
+  ];
 }
 
 export async function addLimitedPayKey(accountId: string) {
@@ -159,7 +176,7 @@ export async function addLimitedPayKey(accountId: string) {
   const outcome = await wallet.signAndSendTransaction({
     signerId: accountId,
     receiverId: accountId,
-    actions: [near.addKey(pair.getPublicKey(), near.functionCallAccessKey(accountId, ["pay"], KEY_ALLOWANCE))],
+    actions: [near.addKey(pair.getPublicKey(), near.functionCallAccessKey(rulesAccount(accountId), ["pay"], KEY_ALLOWANCE))],
   });
   localStorage.setItem(LIMITED + accountId, pair.toString());
   return hashOf(outcome);
@@ -171,7 +188,7 @@ export async function payThroughWallet(accountId: string, receiverId: string, am
   const near = await actions();
   const outcome = await wallet.signAndSendTransaction({
     signerId: accountId,
-    receiverId: accountId,
+    receiverId: rulesAccount(accountId),
     actions: [near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, GAS, 0n)],
   });
   return hashOf(outcome);
@@ -179,24 +196,31 @@ export async function payThroughWallet(accountId: string, receiverId: string, am
 
 export async function payWithLimitedKey(accountId: string, receiverId: string, amount: string) {
   const near = await actions();
-  const outcome = await signLimited(accountId, [near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, GAS, 0n)]);
+  const outcome = await signLimited(accountId, rulesAccount(accountId), [
+    near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, GAS, 0n),
+  ]);
   return hashOf(outcome);
 }
 
 export async function showKeyLimits(accountId: string) {
   const near = await actions();
-  const pay = await signLimited(accountId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, GAS, 0n)]).then(
+  const contractId = rulesAccount(accountId);
+  const pay = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, GAS, 0n)]).then(
     () => "The unknown account was paid. That should not happen.",
     (error: unknown) => textOf(error),
   );
-  const transfer = await signLimited(accountId, [near.transfer(1n)]).then(
+  const transfer = await signLimited(accountId, accountId, [near.transfer(1n)]).then(
     () => "The limited key transferred NEAR. That should not happen.",
     (error: unknown) => textOf(error),
   );
   return { pay, transfer };
 }
 
-async function signLimited(accountId: string, calls: ReturnType<Awaited<ReturnType<typeof actions>>["transfer"]>[]) {
+async function signLimited(
+  accountId: string,
+  receiverId: string,
+  calls: ReturnType<Awaited<ReturnType<typeof actions>>["transfer"]>[],
+) {
   if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
   const secret = localStorage.getItem(LIMITED + accountId);
   if (!secret) throw new Error("Add the limited key on this browser first.");
@@ -208,7 +232,7 @@ async function signLimited(accountId: string, calls: ReturnType<Awaited<ReturnTy
   const signer = KeyPairSigner.fromSecretKey(secret as `${"ed25519" | "secp256k1"}:${string}`);
   const account = new Account(accountId, new JsonRpcProvider({ url: "https://rpc.mainnet.near.org" }), signer);
   return account.signAndSendTransaction({
-    receiverId: accountId,
+    receiverId,
     actions: calls,
     throwOnFailure: true,
   });

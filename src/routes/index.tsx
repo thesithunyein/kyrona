@@ -801,11 +801,11 @@ function OnChain() {
   return (
     <section className="card p-5">
       <p className="kicker">On the account</p>
-      <h2 className="display mt-3 text-3xl">{live ? "The rules are on the account." : "Put the rules on the account."}</h2>
+      <h2 className="display mt-3 text-3xl">{accountId ? `rules.${accountId}` : "A separate rules account."}</h2>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         {live
-          ? "A payment in NEAR now has to pass the list, the lock, and the caps on chain. The limited key can call pay, and nothing else."
-          : "One signature stores this list and these caps in the account. The code locks about 0.79 NEAR. That NEAR stays yours."}
+          ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
+          : "Meteor will not put code on your main account. This creates rules." + (accountId ?? "yourname.near") + ", which you still control. About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} />}
       <div className="mt-5 flex flex-wrap gap-2">

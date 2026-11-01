@@ -31,18 +31,38 @@ export function nearLabel(yoctoAmount: string) {
   return frac ? `${whole}.${frac}` : `${whole}`;
 }
 
-export async function contractLive(accountId: string) {
-  const account = await rpc<AccountView>("query", {
-    request_type: "view_account",
+export function rulesAccount(accountId: string) {
+  if (!accountId.endsWith(".near")) throw new Error("This account cannot own a rules account.");
+  return `rules.${accountId}`;
+}
+
+export async function ownerKey(accountId: string) {
+  const result = await rpc<{ keys: { public_key: string; access_key: { permission: unknown } }[] }>("query", {
+    request_type: "view_access_key_list",
     finality: "final",
     account_id: accountId,
   });
-  return account.code_hash !== EMPTY_CODE;
+  const key = result.keys.find((item) => item.access_key.permission === "FullAccess");
+  if (!key) throw new Error("This account has no full access key.");
+  return key.public_key;
+}
+
+export async function contractLive(accountId: string) {
+  try {
+    const account = await rpc<AccountView>("query", {
+      request_type: "view_account",
+      finality: "final",
+      account_id: rulesAccount(accountId),
+    });
+    return account.code_hash !== EMPTY_CODE;
+  } catch {
+    return false;
+  }
 }
 
 export async function readChainRules(accountId: string) {
   try {
-    return await view<ChainRules>(accountId, "rules", {});
+    return await view<ChainRules>(rulesAccount(accountId), "rules", {});
   } catch {
     return null;
   }
