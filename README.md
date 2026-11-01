@@ -99,13 +99,42 @@ Say this plainly, because it is the boundary of the product.
 
 ## In the code
 
-| Piece | Where |
-|---|---|
-| The six checks | [`src/lib/kyrona/engine.ts`](src/lib/kyrona/engine.ts) |
-| Chain balances and USDC units | [`src/lib/kyrona/chain.ts`](src/lib/kyrona/chain.ts) |
-| Wallet signature | [`src/lib/kyrona/wallet.ts`](src/lib/kyrona/wallet.ts) |
-| Desk saved on `social.near` | [`src/lib/kyrona/account-desk.ts`](src/lib/kyrona/account-desk.ts) |
-| The desk itself | [`src/routes/index.tsx`](src/routes/index.tsx) |
+The desk is the product. The rest of the repository is the host that builds and serves it.
+
+```text
+kyrona
+├── src
+│   ├── routes
+│   │   ├── index.tsx              Desk, Pay, Rules, Ledger
+│   │   └── __root.tsx             Document, icon, theme
+│   ├── lib
+│   │   └── kyrona
+│   │       ├── engine.ts          The six checks and the daily total
+│   │       ├── chain.ts           Mainnet balance, USDC units, storage deposit
+│   │       ├── wallet.ts          Meteor and MyNearWallet, then the signature
+│   │       ├── account-desk.ts    Local desk and the social.near copy
+│   │       ├── store.ts           Rules, balances, and the ledger
+│   │       └── session.ts         Which account is connected
+│   ├── router.tsx
+│   ├── routeTree.gen.ts
+│   └── styles.css
+├── public
+│   ├── logo.png
+│   ├── favicon.png
+│   ├── favicon.svg
+│   └── og.jpg
+├── README.md
+├── SECURITY.md
+├── CODE_OF_CONDUCT.md
+├── LICENSE
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── vercel.json
+```
+
+The host also contains the framework files that start the app, including auth and preview helpers under `src/lib`. They are not part of a payment. A transfer is decided in `engine.ts` and signed in `wallet.ts`.
+
 
 ## Run it locally
 
