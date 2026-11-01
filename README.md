@@ -27,6 +27,8 @@
 
 Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules can live in their own account. A payment then has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR.
 
+![The desk before a wallet is connected](docs/desk.png)
+
 ## The problem
 
 Sending NEAR is easy. Sending the wrong amount, to an account you did not mean, is also easy. A wallet asks you to approve a transaction. It does not know your daily budget, your list of people, or that you wanted spending frozen.
@@ -139,6 +141,8 @@ kyrona
 │   ├── favicon.png
 │   ├── favicon.svg
 │   └── og.jpg
+├── docs
+│   └── desk.png                   The desk, before a wallet is connected
 ├── README.md
 ├── SECURITY.md
 ├── CODE_OF_CONDUCT.md
