@@ -13,8 +13,8 @@
   --color-ok: #1d6b45;
   --color-brass: #003834;
   --color-warn: #8a6a1d;
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --radius-card: 1.25rem;
 }
@@ -57,13 +57,24 @@
 
 .display {
   font-family: var(--font-display);
-  font-weight: 520;
-  letter-spacing: -0.035em;
-  line-height: 1.02;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 
 .nums {
   font-variant-numeric: tabular-nums;
+}
+
+nav button {
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .card {
@@ -102,6 +113,15 @@ textarea.field {
   padding: 0 1.15rem;
   font-size: 0.875rem;
   font-weight: 500;
+  transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.45;
 }
 
 .btn-primary {
@@ -246,15 +266,16 @@ textarea.field {
   position: absolute;
   inset: 8%;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-brass) 70%, transparent);
-  transform: rotateX(62deg) rotateZ(12deg);
-  animation: drift 22s linear infinite;
+  border: 1px solid color-mix(in srgb, #003834 28%, transparent);
+  transform: rotateX(68deg) rotateZ(18deg);
+  animation: drift 28s linear infinite;
 }
 
 .vault-spin-b {
-  inset: 20%;
-  border-color: rgba(23, 24, 21, 0.2);
-  animation-duration: 34s;
+  inset: 18%;
+  border-style: dashed;
+  border-color: color-mix(in srgb, #003834 45%, transparent);
+  animation-duration: 42s;
   animation-direction: reverse;
 }
 

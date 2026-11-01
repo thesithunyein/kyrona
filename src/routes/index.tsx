@@ -130,9 +130,9 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
     <header className="sticky top-0 z-20 border-b border-line/80 bg-bg/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Mark className="h-9 w-auto" />
+          <Mark className="h-11 w-auto" />
           <div className="min-w-0">
-            <div className="text-sm font-medium tracking-tight">Kyrona</div>
+            <div className="wordmark">Kyrona</div>
             <div className="hidden text-xs text-muted sm:block">Before you send</div>
           </div>
         </div>
@@ -679,7 +679,7 @@ function Stat({ label, value, used, cap, note }: { label: string; value: string;
       </div>
       <p className="display nums mt-2 text-3xl">{value}</p>
       <div className="mt-3 h-1 overflow-hidden rounded-full bg-raised">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+        <div className="meter h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 text-xs text-muted">of {cap} · {note}</p>
     </div>
@@ -688,8 +688,8 @@ function Stat({ label, value, used, cap, note }: { label: string; value: string;
 
 function Feature({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <li className="grid gap-2">
-      <span className="text-fg">{children}</span>
+    <li className="grid gap-2.5">
+      <span className="grid size-10 place-items-center rounded-full bg-surface text-fg shadow-[inset_0_0_0_1px_var(--color-line)]">{children}</span>
       <span className="text-xs text-muted">{label}</span>
     </li>
   );
@@ -697,28 +697,26 @@ function Feature({ label, children }: { label: string; children: ReactNode }) {
 
 function IconPeople() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-      <circle cx="9" cy="8" r="2.2" />
-      <path d="M4.8 17.5c.6-2.2 2.3-3.3 4.2-3.3s3.6 1.1 4.2 3.3" />
-      <circle cx="16" cy="9" r="1.7" />
-      <path d="M15 14.4c1.5.2 2.8 1.1 3.4 2.6" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
+      <path d="M8.2 10.2a2.1 2.1 0 1 0 0-4.2 2.1 2.1 0 0 0 0 4.2ZM4.6 17.6c.4-2.2 2-3.4 3.6-3.4s3.2 1.2 3.6 3.4" />
+      <path d="M15.6 10.6a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4ZM14.2 14.6c1.3.3 2.3 1.2 2.8 2.8" />
     </svg>
   );
 }
 
 function IconLimit() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-      <path d="M5 17V7M10 17V10M15 17v-4M20 17V5" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
+      <path d="M5 6.5h14" />
+      <path d="M7 6.5V17M12 6.5V13M17 6.5V10" />
     </svg>
   );
 }
 
 function IconGate() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-      <circle cx="12" cy="12" r="7.5" />
-      <path d="M5 12h14" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
+      <path d="M5 12.5 9.2 17 19 7" />
     </svg>
   );
 }
