@@ -2,6 +2,12 @@ import type { WalletSelector } from "@near-wallet-selector/core";
 import { USDC_CONTRACT, USDC_STORAGE_DEPOSIT, needsUsdcRegistration, toUnits } from "./chain";
 import { SOCIAL, deskData, socialDeposit, type DeskSnapshot } from "./account-desk";
 
+function browserGlobals() {
+  const g = globalThis as typeof globalThis & { global?: typeof globalThis; process?: { env: Record<string, string> } };
+  g.global = g;
+  g.process = g.process || { env: {} };
+}
+
 async function actions() {
   if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
   const { actionCreators } = await import("@near-wallet-selector/core");
@@ -14,6 +20,7 @@ async function getSelector() {
   if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
   if (!selectorPromise) {
     selectorPromise = (async () => {
+      browserGlobals();
       const { Buffer } = await import("buffer");
       (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
       const [{ setupWalletSelector }, { setupMyNearWallet }, { setupMeteorWallet }] = await Promise.all([
@@ -25,7 +32,10 @@ async function getSelector() {
         network: "mainnet",
         modules: [setupMyNearWallet(), setupMeteorWallet()],
       });
-    })();
+    })().catch((error) => {
+      selectorPromise = null;
+      throw error;
+    });
   }
   return selectorPromise;
 }

@@ -99,6 +99,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   const accountId = useDesk((s) => s.accountId);
   const setAccount = useDesk((s) => s.setAccount);
   const [busy, setBusy] = useState(false);
+  const [walletNote, setWalletNote] = useState("");
   const items: { id: Tab; label: string }[] = [
     { id: "desk", label: "Desk" },
     { id: "pay", label: "Pay" },
@@ -108,6 +109,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
 
   async function onWallet() {
     setBusy(true);
+    setWalletNote("");
     try {
       if (accountId) {
         await disconnectWallet();
@@ -116,8 +118,8 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
       }
       const id = await connectWallet();
       await openAccount(id);
-    } catch {
-      /* The wallet modal can be closed without connecting. */
+    } catch (error) {
+      setWalletNote(error instanceof Error ? error.message : "The wallet did not open.");
     } finally {
       setBusy(false);
     }
@@ -125,7 +127,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
 
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-bg/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2.5">
           <Mark className="h-9 w-auto" />
           <div className="min-w-0">
@@ -141,6 +143,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
         >
           {busy ? "Opening" : accountId ? accountId : "Connect"}
         </button>
+        {walletNote ? <p className="w-full text-xs text-danger">{walletNote}</p> : null}
         <nav className="ml-auto hidden rounded-full bg-surface p-1 sm:flex">
           {items.map((item) => (
             <button

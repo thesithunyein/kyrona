@@ -31,6 +31,12 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "globalThis.global=globalThis;globalThis.process=globalThis.process||{env:{},browser:true,version:'',versions:{}};",
+          }}
+        />
         <HeadContent />
       </head>
       <body>
