@@ -125,7 +125,8 @@ export async function sendOnNear(input: {
 
 const LIMITED = "kyrona-limited-key:";
 const GAS = 50_000_000_000_000n;
-const KEY_ALLOWANCE = 50_000_000_000_000_000_000_000n;
+const LIMITED_GAS = 20_000_000_000_000n;
+const KEY_ALLOWANCE = 250_000_000_000_000_000_000_000n;
 
 export function limitedKeyStored(accountId: string) {
   return typeof localStorage !== "undefined" && Boolean(localStorage.getItem(LIMITED + accountId));
@@ -224,7 +225,7 @@ export async function payThroughWallet(accountId: string, receiverId: string, am
 export async function payWithLimitedKey(accountId: string, receiverId: string, amount: string) {
   const near = await actions();
   const outcome = await signLimited(accountId, rulesAccount(accountId), [
-    near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, GAS, 0n),
+    near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, LIMITED_GAS, 0n),
   ]);
   return hashOf(outcome);
 }
@@ -232,7 +233,7 @@ export async function payWithLimitedKey(accountId: string, receiverId: string, a
 export async function showKeyLimits(accountId: string) {
   const near = await actions();
   const contractId = rulesAccount(accountId);
-  const pay = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, GAS, 0n)]).then(
+  const pay = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, LIMITED_GAS, 0n)]).then(
     () => "The unknown account was paid. That should not happen.",
     (error: unknown) => textOf(error),
   );
