@@ -149,6 +149,33 @@ export async function putRulesOnChain(accountId: string, rules: Rules) {
   return hashOf(outcome);
 }
 
+export async function putRulesWithKey(accountId: string, rules: Rules, secret: string) {
+  if (import.meta.env.SSR) throw new Error("This runs in the browser.");
+  const trimmed = secret.trim();
+  if (!trimmed.startsWith("ed25519:")) throw new Error("Paste the private key from Meteor. It starts with ed25519.");
+  const [{ KeyPairSigner }, { JsonRpcProvider }, { Account }] = await Promise.all([
+    import("@near-js/signers"),
+    import("@near-js/providers"),
+    import("@near-js/accounts"),
+  ]);
+  const near = await actions();
+  const args = ruleArgs(rules);
+  const contractId = rulesAccount(accountId);
+  const live = await contractLive(accountId);
+  const calls = live ? [near.functionCall("set_rules", args, GAS, 0n)] : await deployActions(accountId, near, args);
+  const account = new Account(
+    accountId,
+    new JsonRpcProvider({ url: "https://rpc.mainnet.near.org" }),
+    KeyPairSigner.fromSecretKey(trimmed as `ed25519:${string}`),
+  );
+  const outcome = await account.signAndSendTransaction({
+    receiverId: contractId,
+    actions: calls,
+    throwOnFailure: true,
+  });
+  return hashOf(outcome);
+}
+
 async function deployActions(
   accountId: string,
   near: Awaited<ReturnType<typeof actions>>,

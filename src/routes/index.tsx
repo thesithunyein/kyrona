@@ -14,7 +14,7 @@ import { readBalances, isNearAccount } from "@/lib/kyrona/chain";
 import { contractLive, nearLabel, readChainRules } from "@/lib/kyrona/policy";
 import { useDesk } from "@/lib/kyrona/store";
 import { openAccount } from "@/lib/kyrona/session";
-import { addLimitedPayKey, connectWallet, disconnectWallet, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, restoreWallet, saveDeskOnAccount, sendOnNear, showKeyLimits } from "@/lib/kyrona/wallet";
+import { addLimitedPayKey, connectWallet, disconnectWallet, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, putRulesWithKey, restoreWallet, saveDeskOnAccount, sendOnNear, showKeyLimits } from "@/lib/kyrona/wallet";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -768,6 +768,7 @@ function OnChain() {
   const [held, setHeld] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [secret, setSecret] = useState("");
 
   useEffect(() => {
     if (!accountId) return;
@@ -805,15 +806,46 @@ function OnChain() {
       <p className="mt-3 max-w-2xl text-sm text-muted">
         {live
           ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
-          : "Meteor blocks every app from deploying code, so this one step needs MyNearWallet. It creates rules." +
+          : "The wallet link cannot carry a contract this size. Paste the Meteor key below. It is used once in this browser and is not saved. This creates rules." +
             (accountId ?? "yourname.near") +
-            ", which you still control. About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
+            ". About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} />}
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" disabled={busy} className="btn btn-ink" onClick={() => run(() => putRulesOnChain(accountId!, rules), live ? "Rules updated." : "Rules are on the account.")}>
-          {busy ? "Waiting for the wallet" : live ? "Update the rules" : "Put the rules on chain"}
-        </button>
+      <div className="mt-5 grid gap-2">
+        {!live && (
+          <>
+            <input
+              type="password"
+              value={secret}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setSecret(event.target.value)}
+              placeholder="ed25519: private key"
+              className="field"
+            />
+            <button
+              type="button"
+              disabled={busy || secret.trim().length < 20}
+              className="btn btn-ink"
+              onClick={() =>
+                run(async () => {
+                  const hash = await putRulesWithKey(accountId!, rules, secret);
+                  setSecret("");
+                  return hash;
+                }, "Rules are on the account.")
+              }
+            >
+              {busy ? "Sending" : "Put the rules on chain"}
+            </button>
+          </>
+        )}
+        {live && (
+          <button type="button" disabled={busy} className="btn btn-ink" onClick={() => run(() => putRulesOnChain(accountId!, rules), "Rules updated.")}>
+            {busy ? "Waiting for the wallet" : "Update the rules"}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" disabled={busy || !live} className="btn btn-quiet" onClick={() => run(() => addLimitedPayKey(accountId!), held ? "Another limited key was added." : "This browser holds the limited key.")}>
           {held ? "Limited key is here" : "Add a limited key"}
         </button>
