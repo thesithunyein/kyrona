@@ -15,10 +15,10 @@ export const Route = createRootRoute({
         name: "description",
         content: "Set who you pay, how much, and a daily limit. Kyrona blocks the payment before money leaves.",
       },
-      { name: "theme-color", content: "#0c0f0d" },
+      { name: "theme-color", content: "#003834" },
     ],
     links: [
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
