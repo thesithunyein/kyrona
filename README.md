@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://kyrona.vercel.app"><img src="https://img.shields.io/badge/live-kyrona.vercel.app-003834" alt="Live site"></a>
   <img src="https://img.shields.io/badge/network-NEAR%20mainnet-003834" alt="NEAR mainnet">
-  <img src="https://img.shields.io/badge/keys-your%20wallet-003834" alt="Non-custodial">
+  <a href="https://nearblocks.io/address/rules.sithunyein.near"><img src="https://img.shields.io/badge/rules-rules.sithunyein.near-003834" alt="Rules account"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-003834" alt="MIT license"></a>
 </p>
 
@@ -25,13 +25,13 @@
   <a href="LICENSE">License</a>
 </p>
 
-Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. Kyrona reads the real balance, runs those rules, and only then asks your wallet to sign. A failed check never opens a transfer.
+Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules can live in their own account. A payment then has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR.
 
 ## The problem
 
 Sending NEAR is easy. Sending the wrong amount, to an account you did not mean, is also easy. A wallet asks you to approve a transaction. It does not know your daily budget, your list of people, or that you wanted spending frozen.
 
-Kyrona sits in front of that approval.
+Kyrona sits in front of that approval. Once the rules are on their own account, `pay` still checks them even if the page is skipped.
 
 ## How a payment moves
 
@@ -40,19 +40,21 @@ sequenceDiagram
   actor You
   participant Desk as Kyrona
   participant Chain as NEAR mainnet
-  participant Wallet as Your wallet
+  participant Rules as Rules account
 
   You->>Desk: Person, asset, amount
-  Desk->>Chain: Read NEAR and USDC
-  Desk->>Desk: Lock, asset, recipient, per payment, today, balance
-  alt Any check fails
+  Desk->>Chain: Read the balance and the rules
+  alt A check fails
     Desk-->>You: Do not send
     Note over Desk: Nothing is signed
-  else Every check passes
-    Desk->>Wallet: Ask for a signature
-    Wallet->>Chain: Transfer
+  else NEAR, and the rules account exists
+    Desk->>Rules: pay, signed by the limited key or the wallet
+    Rules->>Rules: List, lock, caps
+    Rules->>Chain: Transfer
     Chain-->>Desk: Transaction hash
-    Desk-->>You: Ledger
+  else USDC, or no rules account yet
+    Desk->>Chain: Wallet signs the transfer
+    Chain-->>Desk: Transaction hash
   end
 ```
 
@@ -67,42 +69,48 @@ The checks, in order:
 | Today | Today’s total would still be within the daily cap |
 | Balance | The chain balance covers it |
 
+On the rules account, `pay` repeats the lock, the list, and both caps. USDC does not go through `pay`.
+
 ## Proof
 
-This is a real transfer, signed by the account that holds the funds. It is not a simulated hash.
+`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is that same account. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open.
 
-[0.01 NEAR from `sithunyein.near` to `sithunyein.near`](https://nearblocks.io/txns/DmCpHhv7quFAzcB7dNwkSrdGXrPENMWJQqUCzTF8GC22)
+A limited key on `sithunyein.near` can call `pay` and nothing else. Two attempts with that key failed, which is the point:
 
-The desk recorded that hash after the wallet confirmed it. A payment of 1 NEAR on the same account was refused first, because the balance was lower. No signature was requested for the refusal.
+- Paying an account that is not on the list panicked in the contract: `Not on the list`.
+- A direct transfer was rejected by the protocol. That key is not allowed to transfer.
+
+The payment that passed is a real call to `pay`, not a transfer typed into the wallet:
+
+[0.01 NEAR from `rules.sithunyein.near` to `sithunyein.near`](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd)
+
+The contract recorded 0.01 NEAR spent today. The signer was `sithunyein.near`. The receiver of the call was `rules.sithunyein.near`.
 
 ## Use it
 
-The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Use Chrome and the [Meteor](https://meteorwallet.app) extension.
+The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chrome extension. MyNearWallet works in Firefox.
 
-1. Choose **Connect**, then Meteor.
+1. Choose **Connect**, then Meteor or MyNearWallet.
 2. On Desk, choose **Refresh**. The figures come from the chain. Meteor may hide about 0.2 NEAR as its own gas reserve. The desk shows the full balance.
 3. On Rules, add each account you pay. An account that is not on the list cannot be paid. Set the caps. **Locked** in the header stops every payment. **Open** means spending is allowed.
 4. On Pay, choose the person, NEAR or USDC, and the amount. Choose **Check against my rules**.
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
 6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
-7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not put code on the main account. About 0.79 NEAR moves. 0.74 stays locked for the code. 0.05 can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail.
+7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 0.79 NEAR moves. About 0.74 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 
 ## What this is not
 
-Say this plainly, because it is the boundary of the product.
-
-- Kyrona does not hold the full-access key and does not custody a separate pool of funds.
+- Kyrona does not custody a pool of funds. The rules account is a sub-account you still control. Your full-access key is on it, so you can move that NEAR without calling `pay`. The limited key cannot.
 - Before the rules are on the account, they are enforced in the page. A transfer started directly in the wallet is not checked.
-- After **Put the rules on chain**, `pay` on the account enforces the list, the lock, and the caps. A normal transfer from Meteor still skips `pay`.
-- The limited key can call only `pay`. It cannot transfer NEAR, add a key, or deploy code. Its gas allowance is 0.05 NEAR. The secret for that key stays in this browser.
+- USDC is checked in the page and sent with `ft_transfer`. It does not pass through `pay`.
 - There is no cross-chain swap and no private computation.
-- USDC can be sent only when the account actually holds USDC. USDC does not go through `pay`.
+- The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
 
 ## In the code
 
-The desk is the product. The rest of the repository is the host that builds and serves it.
+The desk is the product. The contract is the part a skipped page cannot bypass.
 
 ```text
 kyrona
@@ -113,8 +121,9 @@ kyrona
 │   ├── lib
 │   │   └── kyrona
 │   │       ├── engine.ts          The six checks and the daily total
-│   │       ├── chain.ts           Mainnet balance, USDC units, storage deposit
-│   │       ├── wallet.ts          Meteor and MyNearWallet, then the signature
+│   │       ├── policy.ts          The rules account, and reading it back
+│   │       ├── chain.ts           Mainnet balance and USDC units
+│   │       ├── wallet.ts          Wallet signature, deploy, limited key, pay
 │   │       ├── account-desk.ts    Local desk and the social.near copy
 │   │       ├── store.ts           Rules, balances, and the ledger
 │   │       └── session.ts         Which account is connected
@@ -122,10 +131,10 @@ kyrona
 │   ├── routeTree.gen.ts
 │   └── styles.css
 ├── contract
-│   ├── Cargo.toml
-│   └── src/lib.rs                 The on-account rules: list, caps, lock, pay
+│   ├── Cargo.toml                 near-sdk 5.17, so the wasm links on current mainnet
+│   └── src/lib.rs                 list, caps, lock, pay
 ├── public
-│   ├── kyrona.wasm                The contract the desk deploys, 78,569 bytes
+│   ├── kyrona.wasm                The contract the desk deploys, 73,784 bytes
 │   ├── logo.png
 │   ├── favicon.png
 │   ├── favicon.svg
@@ -140,8 +149,7 @@ kyrona
 └── vercel.json
 ```
 
-The host also contains the framework files that start the app, including auth and preview helpers under `src/lib`. They are not part of a payment. A transfer is decided in `engine.ts` and signed in `wallet.ts`.
-
+A newer SDK imported host functions this network does not provide. The contract is pinned to `near-sdk` 5.17 so `pay` can start. A transfer is decided in `engine.ts`, and signed in `wallet.ts`. On chain, `contract/src/lib.rs` decides it again.
 
 ## Run it locally
 

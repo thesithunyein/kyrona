@@ -6,7 +6,7 @@ Kyrona is a spending desk. It does not custody your funds. The full-access key s
 
 | | |
 |---|---|
-| Who holds the full-access key | Your wallet. Kyrona never asks for a seed phrase. |
+| Who holds the full-access key | Your wallet. Kyrona does not ask for the 12-word phrase. The one-time deploy can be signed in the page, because Meteor blocks contract code. That key is not stored. |
 | Who can move funds | A signature from that wallet, or the limited key calling `pay` inside the rules. |
 | What the contract can stop | A call to `pay` that breaks the list, the lock, or a cap. |
 | What it cannot stop | A transfer you start directly in Meteor. That path does not call `pay`. |
@@ -34,7 +34,7 @@ The full-access key in Meteor remains. Do not delete it. A transfer it signs dir
 
 - A modified or malicious copy of this website could ask the wallet to sign something else. Check the address is [kyrona.vercel.app](https://kyrona.vercel.app), and read the wallet prompt before you approve it.
 - The per-payment cap, the daily cap, and the lock are enforced by `pay` only after you put the rules on the account. Until then, the page checks them.
-- Balances are read from `https://rpc.mainnet.near.org` at refresh and after a send. They can be a block behind.
+- Balances and the rules are read from a public mainnet endpoint at refresh and after a send. They can be a block behind.
 
 ## Reporting
 
