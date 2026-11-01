@@ -113,7 +113,7 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 - Kyrona does not custody a pool of funds. The rules account is a sub-account you still control. Your full-access key is on it, so you can move that NEAR without calling `pay`. The limited key cannot.
 - Before the rules are on the account, they are enforced in the page. A transfer started directly in the wallet is not checked.
 - USDC is checked in the page and sent with `ft_transfer`. It does not pass through `pay`.
-- There is no separate agent process and no private computation. **Run the agent** is the limited key already in the browser.
+- There is no private computation. `scripts/agent.mjs` is a separate program. It reads a limited key from the environment, refuses a full-access key, tries an account that is not on the list, tries to transfer, then calls `pay`. The key is not in this repository. The payments in the table above were signed in the browser. A payment signed by the script is labeled as such after it exists.
 - The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
 
 ## In the code
@@ -138,6 +138,8 @@ kyrona
 │   ├── router.tsx
 │   ├── routeTree.gen.ts
 │   └── styles.css
+├── scripts
+│   └── agent.mjs                  A separate program. Limited key only. The key is not stored here
 ├── contract
 │   ├── Cargo.toml                 near-sdk 5.17, so the wasm links on current mainnet
 │   └── src/lib.rs                 list, caps, lock, pay
@@ -160,6 +162,16 @@ kyrona
 ```
 
 A newer SDK imported host functions this network does not provide. The contract is pinned to `near-sdk` 5.17 so `pay` can start. A transfer is decided in `engine.ts`, and signed in `wallet.ts`. On chain, `contract/src/lib.rs` decides it again.
+
+## Run the agent
+
+`scripts/agent.mjs` is not the website. It signs with a limited key supplied at runtime. If that key can do more than call `pay`, the script stops.
+
+```sh
+KYRONA_LIMITED_KEY='ed25519:...' npm run agent
+```
+
+Do not commit the key. The script then refuses `outside.near`, refuses a direct transfer, and sends 0.01 NEAR to `kyawminthat.near`.
 
 ## Run it locally
 

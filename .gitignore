@@ -6,6 +6,7 @@ artifacts
 attachments
 .env
 .env.*
+.kyrona-key
 .grok
 *.log
 .DS_Store
