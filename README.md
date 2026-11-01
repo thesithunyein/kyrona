@@ -75,7 +75,7 @@ On the rules account, `pay` repeats the lock, the list, and both caps. USDC does
 
 ## Proof
 
-`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near` and `vendor.sithunyein.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out.
+`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out.
 
 A limited key on `sithunyein.near` can call `pay` and nothing else. It cannot transfer, add a key, or deploy code.
 
@@ -85,10 +85,9 @@ A limited key on `sithunyein.near` can call `pay` and nothing else. It cannot tr
 | A direct transfer | The protocol rejected it. That key may only call `pay`. |
 | `pay` 0.01 NEAR to `sithunyein.near` | [EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd) |
 | `pay` 0.01 NEAR to `vendor.sithunyein.near` | [2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk](https://nearblocks.io/txns/2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk) |
+| `pay` 0.01 NEAR to `kyawminthat.near` | [5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR) |
 
-The second payment is the one to record. The signer was `sithunyein.near`. The call went to `rules.sithunyein.near`. The contract sent 0.01 NEAR to `vendor.sithunyein.near`. No wallet window opened. The same key had just been refused for `outside.near`.
-
-`vendor.sithunyein.near` can receive NEAR. It has no key, because Meteor blocks adding one. The NEAR sent there stays there. The contract has recorded 0.02 NEAR spent.
+The payment to record is the one to `kyawminthat.near`. That account was not created by this project. The signer was `sithunyein.near`. The call went to `rules.sithunyein.near`. The contract sent 0.01 NEAR. The list is now `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The contract has recorded 0.03 NEAR spent.
 
 ## Use it
 
