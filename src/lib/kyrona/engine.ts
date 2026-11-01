@@ -8,8 +8,10 @@ export type Recipient = {
 };
 
 export type Rules = {
-  maxPerTx: number;
-  dailyCap: number;
+  maxUsdc: number;
+  dailyUsdc: number;
+  maxNear: number;
+  dailyNear: number;
   allowedAssets: Asset[];
   recipients: Recipient[];
   killSwitch: boolean;
@@ -45,86 +47,27 @@ export type Decision = {
   spentAfter: number;
 };
 
-export const STARTING = {
-  near: 420,
-  usdc: 1840,
-};
+export const STARTING = { near: 0, usdc: 0 };
 
 export const DEFAULT_RULES: Rules = {
-  maxPerTx: 50,
-  dailyCap: 200,
+  maxUsdc: 100,
+  dailyUsdc: 500,
+  maxNear: 20,
+  dailyNear: 50,
   allowedAssets: ["USDC", "NEAR"],
   killSwitch: false,
-  recipients: [
-    {
-      id: "ava",
-      label: "Ava Chen",
-      account: "ava.near",
-      role: "Approved contractor",
-    },
-    {
-      id: "studio",
-      label: "Northline Studio",
-      account: "northline.near",
-      role: "Retainer",
-    },
-  ],
+  recipients: [],
 };
-
-export const PRESETS: { id: string; title: string; hint: string; proposal: Omit<Proposal, "id"> }[] = [
-  {
-    id: "pay-40",
-    title: "Pay Ava $40",
-    hint: "Inside every rule",
-    proposal: {
-      goal: "Pay my approved contractor $40 in USDC.",
-      asset: "USDC",
-      amount: 40,
-      recipientId: "ava",
-      memo: "Invoice NL-184 · research brief",
-    },
-  },
-  {
-    id: "pay-150",
-    title: "Pay Ava $150",
-    hint: "Over the transaction limit",
-    proposal: {
-      goal: "Pay my approved contractor $150 in USDC.",
-      asset: "USDC",
-      amount: 150,
-      recipientId: "ava",
-      memo: "Invoice NL-185 · rush",
-    },
-  },
-  {
-    id: "stranger",
-    title: "Pay an unknown wallet",
-    hint: "Recipient not on the list",
-    proposal: {
-      goal: "Send $20 USDC to a new address.",
-      asset: "USDC",
-      amount: 20,
-      recipientId: null,
-      unknownAccount: "9f3c…c21a.near",
-      memo: "Unsolicited request",
-    },
-  },
-];
 
 export function dayKey(ts = Date.now()) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
-export function spentToday(decisions: Decision[], ts = Date.now()) {
+export function spentToday(decisions: Decision[], asset: Asset, ts = Date.now()) {
   const key = dayKey(ts);
   return decisions
-    .filter((d) => d.status === "authorized" && dayKey(d.at) === key)
-    .reduce((sum, d) => sum + usdValue(d.proposal), 0);
-}
-
-export function usdValue(p: Pick<Proposal, "asset" | "amount">) {
-  if (p.asset === "USDC") return p.amount;
-  return Math.round(p.amount * 4.2 * 100) / 100;
+    .filter((d) => d.status === "authorized" && d.proposal.asset === asset && dayKey(d.at) === key)
+    .reduce((sum, d) => sum + d.proposal.amount, 0);
 }
 
 export function recipientOf(rules: Rules, proposal: Proposal) {
@@ -134,57 +77,50 @@ export function recipientOf(rules: Rules, proposal: Proposal) {
 
 export function evaluate(rules: Rules, proposal: Proposal, alreadySpent: number): Check[] {
   const recipient = recipientOf(rules, proposal);
-  const value = usdValue(proposal);
   const account = recipient?.account ?? proposal.unknownAccount ?? "—";
+  const max = proposal.asset === "USDC" ? rules.maxUsdc : rules.maxNear;
+  const daily = proposal.asset === "USDC" ? rules.dailyUsdc : rules.dailyNear;
+  const unit = proposal.asset === "USDC" ? "$" : "";
+  const suffix = proposal.asset === "NEAR" ? " NEAR" : "";
 
   return [
     {
       id: "kill",
-      label: "Kill switch",
+      label: "Spending lock",
       pass: !rules.killSwitch,
-      detail: rules.killSwitch
-        ? "Spending is frozen. Nothing can settle."
-        : "Spending is open.",
+      detail: rules.killSwitch ? "Spending is locked. Nothing can be approved." : "Spending is open.",
     },
     {
       id: "asset",
-      label: "Asset allowlist",
+      label: "Asset",
       pass: rules.allowedAssets.includes(proposal.asset),
       detail: rules.allowedAssets.includes(proposal.asset)
         ? `${proposal.asset} is allowed.`
-        : `${proposal.asset} is not on the allowlist.`,
+        : `${proposal.asset} is turned off.`,
     },
     {
       id: "who",
-      label: "Approved recipient",
+      label: "Recipient",
       pass: Boolean(recipient),
-      detail: recipient
-        ? `${recipient.label} · ${recipient.account}`
-        : `${account} is not an approved recipient.`,
+      detail: recipient ? `${recipient.label} · ${recipient.account}` : `${account} is not on your list.`,
     },
     {
       id: "tx",
-      label: "Transaction limit",
-      pass: value <= rules.maxPerTx,
+      label: "Per payment",
+      pass: proposal.amount > 0 && proposal.amount <= max,
       detail:
-        value <= rules.maxPerTx
-          ? `$${value} is within the $${rules.maxPerTx} cap.`
-          : `$${value} exceeds the $${rules.maxPerTx} per-transaction cap.`,
+        proposal.amount <= max
+          ? `${unit}${proposal.amount}${suffix} is within the ${unit}${max}${suffix} limit.`
+          : `${unit}${proposal.amount}${suffix} is over the ${unit}${max}${suffix} limit.`,
     },
     {
       id: "day",
-      label: "Daily budget",
-      pass: alreadySpent + value <= rules.dailyCap,
+      label: "Today",
+      pass: alreadySpent + proposal.amount <= daily,
       detail:
-        alreadySpent + value <= rules.dailyCap
-          ? `$${alreadySpent + value} of $${rules.dailyCap} used today after this payment.`
-          : `Would use $${alreadySpent + value} of a $${rules.dailyCap} daily cap.`,
-    },
-    {
-      id: "keys",
-      label: "No full-access key",
-      pass: true,
-      detail: "The agent only produced a proposal. It cannot sign.",
+        alreadySpent + proposal.amount <= daily
+          ? `${unit}${round2(alreadySpent + proposal.amount)}${suffix} of ${unit}${daily}${suffix} used today.`
+          : `Would use ${unit}${round2(alreadySpent + proposal.amount)}${suffix} of a ${unit}${daily}${suffix} daily limit.`,
     },
   ];
 }
@@ -204,6 +140,10 @@ export function shortHash(hex: string) {
 }
 
 export function money(asset: Asset, amount: number) {
-  const n = amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const n = amount.toLocaleString(undefined, { maximumFractionDigits: 4 });
   return asset === "USDC" ? `$${n}` : `${n} NEAR`;
+}
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
 }

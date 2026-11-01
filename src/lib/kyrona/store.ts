@@ -1,13 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import {
-  DEFAULT_RULES,
-  type Decision,
-  type Rules,
-  spentToday,
-  STARTING,
-  usdValue,
-} from "./engine";
+import { DEFAULT_RULES, type Decision, type Recipient, type Rules, STARTING } from "./engine";
 
 type Balances = { near: number; usdc: number };
 
@@ -16,7 +9,10 @@ type DeskState = {
   decisions: Decision[];
   balances: Balances;
   setRules: (patch: Partial<Rules>) => void;
+  setBalances: (patch: Partial<Balances>) => void;
   toggleAsset: (asset: Rules["allowedAssets"][number]) => void;
+  addRecipient: (person: Omit<Recipient, "id">) => void;
+  removeRecipient: (id: string) => void;
   record: (decision: Decision) => void;
   reset: () => void;
 };
@@ -32,6 +28,7 @@ export const useDesk = create<DeskState>()(
     (set) => ({
       ...initial,
       setRules: (patch) => set((s) => ({ rules: { ...s.rules, ...patch } })),
+      setBalances: (patch) => set((s) => ({ balances: { ...s.balances, ...patch } })),
       toggleAsset: (asset) =>
         set((s) => {
           const has = s.rules.allowedAssets.includes(asset);
@@ -40,6 +37,17 @@ export const useDesk = create<DeskState>()(
             : [...s.rules.allowedAssets, asset];
           return { rules: { ...s.rules, allowedAssets: next.length ? next : s.rules.allowedAssets } };
         }),
+      addRecipient: (person) =>
+        set((s) => ({
+          rules: {
+            ...s.rules,
+            recipients: [...s.rules.recipients, { ...person, id: crypto.randomUUID() }],
+          },
+        })),
+      removeRecipient: (id) =>
+        set((s) => ({
+          rules: { ...s.rules, recipients: s.rules.recipients.filter((r) => r.id !== id) },
+        })),
       record: (decision) =>
         set((s) => {
           const balances = { ...s.balances };
@@ -47,24 +55,14 @@ export const useDesk = create<DeskState>()(
             if (decision.proposal.asset === "USDC") balances.usdc = round2(balances.usdc - decision.proposal.amount);
             else balances.near = round2(balances.near - decision.proposal.amount);
           }
-          return { decisions: [decision, ...s.decisions].slice(0, 24), balances };
+          return { decisions: [decision, ...s.decisions].slice(0, 80), balances };
         }),
       reset: () => set({ ...initial, rules: structuredClone(DEFAULT_RULES), balances: { ...STARTING } }),
     }),
-    { name: "kyrona-desk-v1" },
+    { name: "kyrona-desk-v2" },
   ),
 );
-
-export function selectSpent(decisions: Decision[]) {
-  return spentToday(decisions);
-}
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
-
-export function treasuryUsd(balances: Balances) {
-  return Math.round((balances.usdc + balances.near * 4.2) * 100) / 100;
-}
-
-export { usdValue };

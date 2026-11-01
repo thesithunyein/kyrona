@@ -10,11 +10,10 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Kyrona — AI CFO inside your rules" },
+      { title: "Kyrona — spending limits before you send" },
       {
         name: "description",
-        content:
-          "Kyrona proposes payments and only settles them when your rules allow it. Built for NEAR Hackathon.",
+        content: "Set who you pay, how much, and a daily limit. Kyrona blocks the payment before money leaves.",
       },
       { name: "theme-color", content: "#0c0f0d" },
     ],

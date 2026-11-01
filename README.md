@@ -1,37 +1,22 @@
 # Kyrona
 
-Autonomous finance. Human-controlled.
+A spending desk for people who pay in USDC or NEAR.
 
-Kyrona is an AI CFO desk. You set the rules. The agent writes a payment proposal. A separate gate checks the recipient, the asset, the per-payment cap, the daily budget, and the kill switch. Money moves only when every check passes.
+You write down what you hold, who you pay, and the limits. Before you send, Kyrona checks the person, the asset, the per-payment cap, today’s total, and whether spending is locked. If any check fails, it tells you not to send. If they pass, you send from your own wallet and record it so the remaining budget stays true.
 
-The agent never holds a key. It can only propose.
+Kyrona does not hold keys and does not broadcast a transaction.
 
-## Problem
+## Use it
 
-People can move crypto. They cannot safely hand a treasury to an autonomous agent. A full-access key is too much authority. A chat reply is not a control.
+1. On Desk, enter the USDC and NEAR you actually hold and save.
+2. On Rules, add the accounts you pay and set the caps. Unknown accounts are refused.
+3. On Pay, enter who, the asset, and the amount. Check it.
+4. If it says **Do not send**, do not send. Save the stop if you want it in the ledger.
+5. If it says **Safe to send**, send from your wallet, then record it. The desk balance and today’s total drop by that amount.
 
-## What this preview does
+Lock spending from the header when you want every payment to stop.
 
-Open the app and run two payments on the same path.
-
-1. Desk loads with 420 NEAR and $1,840 USDC. The per-payment cap is $50. Ava Chen (`ava.near`) and Northline Studio are approved recipients.
-2. Open **Pay** and choose **Pay Ava $150**. See **Rejected**. The transaction-limit check says $150 exceeds the $50 cap. Choose **Record the block**. No balance changes.
-3. Choose **Pay Ava $40**. Every check says Pass. See **Authorized**. Choose **Settle via NEAR Intents**. USDC balance drops by 40.
-4. Open **Ledger**. Both verdicts are listed: one Blocked, one Settled, each with a proposal hash. The settled row also has an intent hash.
-5. Open **Rules** and turn the kill switch on (**Frozen** in the header does the same). Run **Pay Ava $40** again. See **Rejected** because spending is frozen.
-
-Rules and the ledger stay in this browser.
-
-## How NEAR fits
-
-- The agent emits a structured proposal. It does not receive a full-access key.
-- Policy (recipient, asset, caps, kill switch) is checked before anything can be signed. In production those rules belong in a NEAR contract, enforced by a function-call key that can only submit an already-allowed intent.
-- Only an authorized proposal is a candidate for settlement through NEAR Intents.
-- This preview evaluates the same checks in the browser so a judge can run the block and the settlement without gas or a mainnet key. It does not claim a live TEE or a live mainnet transfer.
-
-## Tracks
-
-`security`, `business`, `privacy`
+Data stays in this browser.
 
 ## Run
 
@@ -39,14 +24,6 @@ Rules and the ledger stay in this browser.
 npm install
 npm run dev
 ```
-
-The desk is the home page.
-
-## Hackathon
-
-Built for [NEAR Hackathon](https://nearhackathon.com/).
-
-Independent submission. If a second project is entered from the same person, name it in this file before submitting.
 
 ## License
 

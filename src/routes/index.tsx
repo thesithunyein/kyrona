@@ -1,19 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   evaluate,
   hashText,
   money,
-  PRESETS,
-  recipientOf,
   shortHash,
-  STARTING,
+  spentToday,
   type Asset,
   type Decision,
   type Proposal,
-  usdValue,
 } from "@/lib/kyrona/engine";
-import { selectSpent, treasuryUsd, useDesk } from "@/lib/kyrona/store";
+import { useDesk } from "@/lib/kyrona/store";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -48,7 +45,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <div className="font-display text-xl tracking-tight">Kyrona</div>
-          <div className="hidden text-xs text-muted sm:block">Autonomous finance. Human-controlled.</div>
+          <div className="hidden text-xs text-muted sm:block">Check the payment before you send it.</div>
         </div>
         <nav className="ml-auto hidden gap-1 sm:flex">
           {items.map((item) => (
@@ -56,9 +53,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
               key={item.id}
               type="button"
               onClick={() => onTab(item.id)}
-              className={`rounded-full px-4 py-2 text-sm ${
-                tab === item.id ? "bg-fg text-bg" : "text-muted hover:text-fg"
-              }`}
+              className={`rounded-full px-4 py-2 text-sm ${tab === item.id ? "bg-fg text-bg" : "text-muted hover:text-fg"}`}
             >
               {item.label}
             </button>
@@ -67,11 +62,9 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
         <button
           type="button"
           onClick={() => setRules({ killSwitch: !kill })}
-          className={`rounded-full border px-3 py-2 text-xs font-medium ${
-            kill ? "border-danger text-danger" : "border-line text-muted"
-          }`}
+          className={`rounded-full border px-3 py-2 text-xs font-medium ${kill ? "border-danger text-danger" : "border-line text-muted"}`}
         >
-          {kill ? "Frozen" : "Live"}
+          {kill ? "Locked" : "Open"}
         </button>
       </div>
       <nav className="flex gap-1 overflow-x-auto px-4 pb-3 sm:hidden">
@@ -80,9 +73,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
             key={item.id}
             type="button"
             onClick={() => onTab(item.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm ${
-              tab === item.id ? "bg-fg text-bg" : "bg-surface text-muted"
-            }`}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm ${tab === item.id ? "bg-fg text-bg" : "bg-surface text-muted"}`}
           >
             {item.label}
           </button>
@@ -94,90 +85,89 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
 
 function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
   const balances = useDesk((s) => s.balances);
+  const setBalances = useDesk((s) => s.setBalances);
   const rules = useDesk((s) => s.rules);
   const decisions = useDesk((s) => s.decisions);
-  const spent = selectSpent(decisions);
-  const usd = treasuryUsd(balances);
+  const usdcSpent = spentToday(decisions, "USDC");
+  const nearSpent = spentToday(decisions, "NEAR");
   const last = decisions[0];
+  const [usdc, setUsdc] = useState(String(balances.usdc || ""));
+  const [near, setNear] = useState(String(balances.near || ""));
+
+  function saveBalances() {
+    setBalances({
+      usdc: Math.max(0, Number(usdc) || 0),
+      near: Math.max(0, Number(near) || 0),
+    });
+  }
 
   return (
     <div className="rise grid gap-6">
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">Treasury desk</p>
-          <h1 className="mt-2 max-w-xl font-display text-4xl leading-[1.05] sm:text-5xl">
-            Tell it what you want. Money moves only inside your rules.
-          </h1>
-          <p className="mt-4 max-w-lg text-base leading-relaxed text-muted">
-            Kyrona drafts a payment. A separate gate checks the recipient, the amount, and today’s budget
-            before anything can settle.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onPay}
-              className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-ink"
-            >
-              Run a payment
-            </button>
-            <button
-              type="button"
-              onClick={onRules}
-              className="rounded-full border border-line px-5 py-3 text-sm text-fg"
-            >
-              Edit rules
-            </button>
-          </div>
-        </div>
-        <div className="rounded-card border border-line bg-surface p-5">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted">Working principle</p>
-          <p className="mt-3 font-display text-2xl leading-snug">
-            Give the agent financial responsibility. Never unrestricted authority.
-          </p>
-          <p className="mt-4 text-sm leading-relaxed text-muted">
-            The agent cannot hold a key. It can only propose. Settlement is a separate step, and only if every
-            check passes.
-          </p>
+      <section className="max-w-2xl">
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">Spending desk</p>
+        <h1 className="mt-2 font-display text-4xl leading-[1.05] sm:text-5xl">
+          Stop the wrong payment before the money leaves.
+        </h1>
+        <p className="mt-4 text-base leading-relaxed text-muted">
+          Put in what you hold, who you pay, and the limits. Kyrona refuses a payment that breaks those limits.
+          You only send from your wallet after it says yes.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button type="button" onClick={onPay} className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-ink">
+            New payment
+          </button>
+          <button type="button" onClick={onRules} className="rounded-full border border-line px-5 py-3 text-sm">
+            Add someone you pay
+          </button>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Stat
-          label="Treasury"
-          value={`$${usd.toLocaleString()}`}
-          note={`${balances.near} NEAR · $${balances.usdc.toLocaleString()} USDC`}
-        />
-        <Stat label="Spent today" value={`$${spent}`} note={`of $${rules.dailyCap} daily cap`} />
-        <Stat
-          label="Per payment"
-          value={`$${rules.maxPerTx}`}
-          note={rules.killSwitch ? "Kill switch is on" : `${rules.recipients.length} approved recipients`}
-        />
-      </section>
-
-      <section className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-card border border-line bg-surface p-5">
-          <h2 className="text-sm font-medium">What the judges should try</h2>
-          <ol className="mt-4 space-y-3 text-sm text-muted">
-            <li>1. Open Pay and choose “Pay Ava $150”. It is blocked. The limit is $50.</li>
-            <li>2. Choose “Pay Ava $40”. Every check passes. Settle it.</li>
-            <li>3. Open Rules and flip the kill switch. The next payment cannot move.</li>
-          </ol>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-card border border-line bg-surface p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">What you hold</p>
+          <label className="mt-3 block text-sm">
+            USDC
+            <input
+              inputMode="decimal"
+              value={usdc}
+              onChange={(e) => setUsdc(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-3"
+              placeholder="0"
+            />
+          </label>
+          <label className="mt-3 block text-sm">
+            NEAR
+            <input
+              inputMode="decimal"
+              value={near}
+              onChange={(e) => setNear(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-3"
+              placeholder="0"
+            />
+          </label>
+          <button type="button" onClick={saveBalances} className="mt-4 rounded-full bg-fg px-4 py-2 text-sm text-bg">
+            Save balances
+          </button>
+          <p className="mt-3 text-xs text-muted">Saved: ${balances.usdc.toLocaleString()} USDC · {balances.near} NEAR</p>
         </div>
-        <div className="rounded-card border border-line bg-surface p-5">
-          <h2 className="text-sm font-medium">Latest decision</h2>
-          {last ? (
-            <DecisionSummary decision={last} />
-          ) : (
-            <p className="mt-4 text-sm text-muted">
-              Nothing settled yet. The starting treasury is {STARTING.near} NEAR and $
-              {STARTING.usdc.toLocaleString()} USDC.
-            </p>
-          )}
+        <div className="grid gap-3">
+          <Stat label="USDC today" value={`$${usdcSpent}`} note={`of $${rules.dailyUsdc} · $${rules.maxUsdc} per payment`} />
+          <Stat label="NEAR today" value={`${nearSpent}`} note={`of ${rules.dailyNear} · ${rules.maxNear} per payment`} />
         </div>
       </section>
 
-      <NearStrip />
+      <section className="rounded-card border border-line bg-surface p-5">
+        <h2 className="text-sm font-medium">Last decision</h2>
+        {last ? (
+          <DecisionSummary decision={last} />
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            {rules.recipients.length === 0
+              ? "Add the people you actually pay, then check a payment against the limits."
+              : "No payments yet. The next one will be checked before you send it."}
+          </p>
+        )}
+      </section>
     </div>
   );
 }
@@ -187,121 +177,155 @@ function Pay() {
   const decisions = useDesk((s) => s.decisions);
   const balances = useDesk((s) => s.balances);
   const record = useDesk((s) => s.record);
-  const [presetId, setPresetId] = useState(PRESETS[1].id);
-  const [phase, setPhase] = useState<"idle" | "reading" | "ready">("idle");
+  const [recipientId, setRecipientId] = useState(rules.recipients[0]?.id ?? "");
+  const [asset, setAsset] = useState<Asset>("USDC");
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
   const [active, setActive] = useState<Proposal | null>(null);
-  const spent = selectSpent(decisions);
+  const [error, setError] = useState("");
 
+  const spent = active ? spentToday(decisions, active.asset) : 0;
   const checks = useMemo(() => {
     if (!active) return [];
-    const base = evaluate(rules, active, spent);
-    const enough =
-      active.asset === "USDC" ? balances.usdc >= active.amount : balances.near >= active.amount;
+    const enough = active.asset === "USDC" ? balances.usdc >= active.amount : balances.near >= active.amount;
     return [
-      ...base,
+      ...evaluate(rules, active, spent),
       {
         id: "funds",
-        label: "Available balance",
+        label: "Balance",
         pass: enough,
-        detail: enough
-          ? "The treasury can cover this payment."
-          : "Not enough of that asset is on the desk.",
+        detail: enough ? "You have enough on the desk." : "The desk balance is lower than this payment. Update what you hold, or lower the amount.",
       },
     ];
   }, [active, rules, spent, balances]);
-
   const authorized = checks.length > 0 && checks.every((c) => c.pass);
-  const recipient = active ? recipientOf(rules, active) : null;
 
-  function draft(id: string) {
-    const preset = PRESETS.find((p) => p.id === id) ?? PRESETS[0];
-    setPresetId(id);
-    setPhase("reading");
-    setActive(null);
-    window.setTimeout(() => {
-      setActive({ ...preset.proposal, id: crypto.randomUUID() });
-      setPhase("ready");
-    }, 700);
+  function review() {
+    const value = Number(amount);
+    if (!recipientId) {
+      setError("Add a recipient under Rules first.");
+      return;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Enter an amount greater than zero.");
+      return;
+    }
+    setError("");
+    const person = rules.recipients.find((r) => r.id === recipientId);
+    setActive({
+      id: crypto.randomUUID(),
+      goal: memo || `Pay ${person?.label ?? "recipient"}`,
+      asset,
+      amount: value,
+      recipientId,
+      memo: memo || "Payment",
+    });
   }
 
-  function settle() {
+  function commit() {
     if (!active) return;
-    const freshSpent = selectSpent(useDesk.getState().decisions);
-    const freshBalances = useDesk.getState().balances;
     const freshRules = useDesk.getState().rules;
-    const enough =
-      active.asset === "USDC" ? freshBalances.usdc >= active.amount : freshBalances.near >= active.amount;
+    const freshBalances = useDesk.getState().balances;
+    const freshSpent = spentToday(useDesk.getState().decisions, active.asset);
+    const enough = active.asset === "USDC" ? freshBalances.usdc >= active.amount : freshBalances.near >= active.amount;
     const fresh = [
       ...evaluate(freshRules, active, freshSpent),
       {
         id: "funds",
-        label: "Available balance",
+        label: "Balance",
         pass: enough,
-        detail: enough ? "The treasury can cover this payment." : "Not enough of that asset is on the desk.",
+        detail: enough ? "You have enough on the desk." : "Not enough on the desk.",
       },
     ];
     const ok = fresh.every((c) => c.pass);
-    const proposalHash = hashText(JSON.stringify(active));
-    const decision: Decision = {
+    record({
       id: crypto.randomUUID(),
       at: Date.now(),
       proposal: active,
       checks: fresh,
       status: ok ? "authorized" : "blocked",
-      proposalHash,
-      txHash: ok ? hashText(`tx:${active.id}:${Date.now()}`) : null,
-      spentAfter: ok ? freshSpent + usdValue(active) : freshSpent,
-    };
-    record(decision);
-    setPhase("idle");
+      proposalHash: hashText(JSON.stringify(active)),
+      txHash: null,
+      spentAfter: ok ? freshSpent + active.amount : freshSpent,
+    });
     setActive(null);
+    setAmount("");
+    setMemo("");
   }
 
   return (
-    <div className="rise grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+    <div className="rise grid gap-6 lg:grid-cols-2">
       <section>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">Payment desk</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight">One goal. One verdict.</h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted">
-          Start with the payment that should fail, then the one that should settle. Both use the same path.
-        </p>
-        <div className="mt-5 grid gap-2">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => draft(preset.id)}
-              className={`rounded-card border px-4 py-4 text-left ${
-                presetId === preset.id && phase !== "idle" ? "border-accent bg-raised" : "border-line bg-surface"
-              }`}
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">Payment</p>
+        <h1 className="mt-2 font-display text-4xl">Check it, then send it.</h1>
+        <div className="mt-5 grid gap-3">
+          <label className="grid gap-1 text-sm">
+            Who
+            <select
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+              className="rounded-xl border border-line bg-surface px-3 py-3"
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium">{preset.title}</span>
-                <span className="text-xs text-muted">{preset.hint}</span>
-              </div>
-              <p className="mt-1 text-sm text-muted">{preset.proposal.goal}</p>
-            </button>
-          ))}
+              {rules.recipients.length === 0 && <option value="">No one yet</option>}
+              {rules.recipients.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.label} · {person.account}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            {(["USDC", "NEAR"] as Asset[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setAsset(item)}
+                className={`rounded-full px-4 py-2 text-sm ${asset === item ? "bg-fg text-bg" : "border border-line text-muted"}`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+          <label className="grid gap-1 text-sm">
+            Amount
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="rounded-xl border border-line bg-surface px-3 py-3"
+              placeholder={asset === "USDC" ? "40" : "2"}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            What it’s for
+            <input
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              className="rounded-xl border border-line bg-surface px-3 py-3"
+              placeholder="Invoice, rent, contractor"
+            />
+          </label>
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <button type="button" onClick={review} className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-ink">
+            Check against my rules
+          </button>
         </div>
       </section>
-
       <section className="rounded-card border border-line bg-surface p-5">
-        {phase === "idle" && <EmptyGate />}
-        {phase === "reading" && (
-          <p className="font-display text-2xl">Reading the treasury and writing a proposal…</p>
+        {!active && (
+          <div>
+            <p className="font-display text-3xl">Nothing checked yet.</p>
+            <p className="mt-3 text-sm text-muted">
+              Fill in the payment. Kyrona will say yes or no. A no does not change your balance.
+            </p>
+          </div>
         )}
-        {phase === "ready" && active && (
-          <div className="grid gap-5">
+        {active && (
+          <div className="grid gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-muted">Structured proposal</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Result</p>
               <p className="mt-2 font-display text-3xl">{money(active.asset, active.amount)}</p>
-              <p className="mt-1 text-sm text-muted">
-                to {recipient ? `${recipient.label} · ${recipient.account}` : active.unknownAccount}
-              </p>
-              <p className="mt-2 text-sm">{active.memo}</p>
-              <p className="mt-3 font-mono text-xs text-muted">
-                proposal {shortHash(hashText(JSON.stringify(active)))} · agent has no signing key
-              </p>
+              <p className="mt-1 text-sm text-muted">{active.memo}</p>
             </div>
             <ul className="grid gap-2">
               {checks.map((check) => (
@@ -310,27 +334,25 @@ function Pay() {
                     <p className="text-sm font-medium">{check.label}</p>
                     <p className="text-xs text-muted">{check.detail}</p>
                   </div>
-                  <span className={`shrink-0 text-xs font-medium ${check.pass ? "text-ok" : "text-danger"}`}>
-                    {check.pass ? "Pass" : "Block"}
+                  <span className={`text-xs font-medium ${check.pass ? "text-ok" : "text-danger"}`}>
+                    {check.pass ? "Pass" : "Stop"}
                   </span>
                 </li>
               ))}
             </ul>
-            <div className={`rounded-2xl px-4 py-4 ${authorized ? "bg-accent text-accent-ink" : "bg-bg text-fg"}`}>
-              <p className="font-display text-2xl">{authorized ? "Authorized" : "Rejected"}</p>
+            <div className={`rounded-2xl px-4 py-4 ${authorized ? "bg-accent text-accent-ink" : "bg-bg"}`}>
+              <p className="font-display text-2xl">{authorized ? "Safe to send" : "Do not send"}</p>
               <p className="mt-1 text-sm opacity-80">
                 {authorized
-                  ? "Every rule is satisfied. Settlement can proceed."
-                  : "Payment stays locked. Nothing was signed."}
+                  ? "Send it from your wallet, then record it here so today’s limit stays accurate."
+                  : "Fix the amount, the person, or the lock. Nothing was deducted."}
               </p>
               <button
                 type="button"
-                onClick={settle}
-                className={`mt-4 rounded-full px-4 py-2 text-sm font-semibold ${
-                  authorized ? "bg-accent-ink text-accent" : "bg-fg text-bg"
-                }`}
+                onClick={commit}
+                className={`mt-4 rounded-full px-4 py-2 text-sm font-semibold ${authorized ? "bg-accent-ink text-accent" : "bg-fg text-bg"}`}
               >
-                {authorized ? "Settle via NEAR Intents" : "Record the block"}
+                {authorized ? "I sent it — update my desk" : "Save this stop"}
               </button>
             </div>
           </div>
@@ -344,86 +366,90 @@ function Rules() {
   const rules = useDesk((s) => s.rules);
   const setRules = useDesk((s) => s.setRules);
   const toggleAsset = useDesk((s) => s.toggleAsset);
+  const addRecipient = useDesk((s) => s.addRecipient);
+  const removeRecipient = useDesk((s) => s.removeRecipient);
   const reset = useDesk((s) => s.reset);
+  const [label, setLabel] = useState("");
+  const [account, setAccount] = useState("");
+  const [role, setRole] = useState("");
+  const [formError, setFormError] = useState("");
+
+  function addPerson() {
+    if (label.trim().length < 2 || account.trim().length < 2) {
+      setFormError("Name and account are both required.");
+      return;
+    }
+    addRecipient({ label: label.trim(), account: account.trim(), role: role.trim() || "Payee" });
+    setLabel("");
+    setAccount("");
+    setRole("");
+    setFormError("");
+  }
 
   return (
-    <div className="rise grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+    <div className="rise grid gap-6 lg:grid-cols-2">
       <section>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">Human authority</p>
-        <h1 className="mt-2 font-display text-4xl">Rules the agent cannot edit.</h1>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">Limits</p>
+        <h1 className="mt-2 font-display text-4xl">Your limits, not a suggestion.</h1>
         <div className="mt-6 grid gap-4">
-          <Field label={`Per payment · $${rules.maxPerTx}`}>
-            <input
-              type="range"
-              min={10}
-              max={200}
-              step={10}
-              value={rules.maxPerTx}
-              onChange={(e) => setRules({ maxPerTx: Number(e.target.value) })}
-              className="w-full"
-            />
-          </Field>
-          <Field label={`Daily budget · $${rules.dailyCap}`}>
-            <input
-              type="range"
-              min={50}
-              max={1000}
-              step={50}
-              value={rules.dailyCap}
-              onChange={(e) => setRules({ dailyCap: Number(e.target.value) })}
-              className="w-full"
-            />
-          </Field>
-          <Field label="Assets">
-            <div className="flex gap-2">
-              {(["USDC", "NEAR"] as Asset[]).map((asset) => {
-                const on = rules.allowedAssets.includes(asset);
-                return (
-                  <button
-                    key={asset}
-                    type="button"
-                    onClick={() => toggleAsset(asset)}
-                    className={`rounded-full px-4 py-2 text-sm ${on ? "bg-fg text-bg" : "border border-line text-muted"}`}
-                  >
-                    {asset}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
+          <NumberField label="Max USDC per payment" value={rules.maxUsdc} onChange={(n) => setRules({ maxUsdc: n })} />
+          <NumberField label="USDC per day" value={rules.dailyUsdc} onChange={(n) => setRules({ dailyUsdc: n })} />
+          <NumberField label="Max NEAR per payment" value={rules.maxNear} onChange={(n) => setRules({ maxNear: n })} />
+          <NumberField label="NEAR per day" value={rules.dailyNear} onChange={(n) => setRules({ dailyNear: n })} />
+          <div className="flex gap-2">
+            {(["USDC", "NEAR"] as Asset[]).map((asset) => {
+              const on = rules.allowedAssets.includes(asset);
+              return (
+                <button
+                  key={asset}
+                  type="button"
+                  onClick={() => toggleAsset(asset)}
+                  className={`rounded-full px-4 py-2 text-sm ${on ? "bg-fg text-bg" : "border border-line text-muted"}`}
+                >
+                  {on ? `${asset} on` : `${asset} off`}
+                </button>
+              );
+            })}
+          </div>
           <button
             type="button"
             onClick={() => setRules({ killSwitch: !rules.killSwitch })}
             className={`rounded-card border px-4 py-4 text-left ${rules.killSwitch ? "border-danger" : "border-line"}`}
           >
-            <p className="font-medium">{rules.killSwitch ? "Kill switch is on" : "Kill switch is off"}</p>
-            <p className="mt-1 text-sm text-muted">
-              {rules.killSwitch
-                ? "Every proposal is blocked until you turn this off."
-                : "Turn it on to freeze spending immediately."}
-            </p>
+            <p className="font-medium">{rules.killSwitch ? "Spending is locked" : "Spending is open"}</p>
+            <p className="mt-1 text-sm text-muted">Lock it when you want every payment to stop, including ones that fit the caps.</p>
           </button>
         </div>
       </section>
       <section className="rounded-card border border-line bg-surface p-5">
-        <h2 className="text-sm font-medium">Approved recipients</h2>
-        <ul className="mt-4 grid gap-3">
+        <h2 className="text-sm font-medium">People you pay</h2>
+        <div className="mt-4 grid gap-2">
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name" className="rounded-xl border border-line bg-bg px-3 py-3 text-sm" />
+          <input value={account} onChange={(e) => setAccount(e.target.value)} placeholder="Account or address" className="rounded-xl border border-line bg-bg px-3 py-3 text-sm" />
+          <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Why you pay them" className="rounded-xl border border-line bg-bg px-3 py-3 text-sm" />
+          {formError && <p className="text-sm text-danger">{formError}</p>}
+          <button type="button" onClick={addPerson} className="rounded-full bg-fg px-4 py-2 text-sm text-bg">
+            Add
+          </button>
+        </div>
+        <ul className="mt-4 grid gap-2">
+          {rules.recipients.length === 0 && <li className="text-sm text-muted">Nobody yet. Payments to unknown accounts are stopped.</li>}
           {rules.recipients.map((person) => (
-            <li key={person.id} className="rounded-2xl bg-raised px-4 py-3">
-              <p className="font-medium">{person.label}</p>
-              <p className="font-mono text-xs text-muted">{person.account}</p>
-              <p className="mt-1 text-xs text-muted">{person.role}</p>
+            <li key={person.id} className="flex items-start justify-between gap-3 rounded-2xl bg-raised px-3 py-3">
+              <div>
+                <p className="text-sm font-medium">{person.label}</p>
+                <p className="font-mono text-xs text-muted">{person.account}</p>
+                <p className="text-xs text-muted">{person.role}</p>
+              </div>
+              <button type="button" onClick={() => removeRecipient(person.id)} className="text-xs text-muted">
+                Remove
+              </button>
             </li>
           ))}
         </ul>
         <button type="button" onClick={reset} className="mt-5 text-sm text-muted underline">
-          Reset desk to the demo treasury
+          Clear the desk
         </button>
-        <p className="mt-4 text-xs leading-relaxed text-muted">
-          In production these rules live in a NEAR contract and a function-call key that can only submit an intent
-          the contract already allowed. This preview evaluates the same checks in the browser so a judge can run both
-          outcomes without gas.
-        </p>
       </section>
     </div>
   );
@@ -433,10 +459,10 @@ function Ledger() {
   const decisions = useDesk((s) => s.decisions);
   return (
     <div className="rise">
-      <p className="text-xs uppercase tracking-[0.18em] text-muted">Evidence</p>
-      <h1 className="mt-2 font-display text-4xl">Every verdict stays on the desk.</h1>
+      <p className="text-xs uppercase tracking-[0.18em] text-muted">Ledger</p>
+      <h1 className="mt-2 font-display text-4xl">What you approved and what you stopped.</h1>
       {decisions.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">No decisions yet. Run the $150 block and the $40 settlement.</p>
+        <p className="mt-6 text-sm text-muted">Empty. A checked payment will show up here, whether you sent it or stopped it.</p>
       ) : (
         <ul className="mt-6 grid gap-3">
           {decisions.map((decision) => (
@@ -455,22 +481,20 @@ function DecisionSummary({ decision }: { decision: Decision }) {
   const who = recipients.find((r) => r.id === decision.proposal.recipientId);
   const failed = decision.checks.find((c) => !c.pass);
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">
-            {money(decision.proposal.asset, decision.proposal.amount)} · {who?.label ?? decision.proposal.unknownAccount}
+            {money(decision.proposal.asset, decision.proposal.amount)} · {who?.label ?? "Removed recipient"}
           </p>
           <p className="text-xs text-muted">{new Date(decision.at).toLocaleString()}</p>
         </div>
         <span className={`text-xs font-medium ${decision.status === "authorized" ? "text-ok" : "text-danger"}`}>
-          {decision.status === "authorized" ? "Settled" : "Blocked"}
+          {decision.status === "authorized" ? "Sent" : "Stopped"}
         </span>
       </div>
       <p className="mt-2 text-sm text-muted">
-        {decision.status === "authorized"
-          ? `Intent ${decision.txHash ? shortHash(decision.txHash) : ""}. Proposal ${shortHash(decision.proposalHash)}.`
-          : failed?.detail}
+        {decision.status === "authorized" ? decision.proposal.memo : failed?.detail} · {shortHash(decision.proposalHash)}
       </p>
     </div>
   );
@@ -486,42 +510,17 @@ function Stat({ label, value, note }: { label: string; value: string; note: stri
   );
 }
 
-function EmptyGate() {
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
   return (
-    <div>
-      <p className="text-xs uppercase tracking-[0.16em] text-muted">Policy gate</p>
-      <p className="mt-3 font-display text-3xl leading-tight">Waiting for a proposal.</p>
-      <p className="mt-3 text-sm leading-relaxed text-muted">
-        Pick a payment on the left. Kyrona will write a structured proposal, then this gate accepts or rejects it. A
-        rejection never produces a transaction.
-      </p>
-    </div>
-  );
-}
-
-function NearStrip() {
-  const items = [
-    ["Proposal only", "The agent writes intent fields. It never receives a full-access key."],
-    ["Policy before sign", "Recipient, asset, per-payment cap, daily budget, and kill switch are checked first."],
-    ["NEAR Intents", "An authorized payment is the only path that can settle across chains."],
-  ];
-  return (
-    <section className="grid gap-3 sm:grid-cols-3">
-      {items.map(([title, body]) => (
-        <div key={title} className="rounded-card border border-line px-4 py-4">
-          <p className="text-sm font-medium">{title}</p>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="grid gap-2 rounded-card border border-line bg-surface px-4 py-4">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
+    <label className="grid gap-2 text-sm">
+      <span>{label}</span>
+      <input
+        inputMode="decimal"
+        defaultValue={value}
+        key={`${label}-${value}`}
+        onBlur={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+        className="rounded-xl border border-line bg-surface px-3 py-3"
+      />
     </label>
   );
 }
