@@ -150,6 +150,9 @@ textarea.field {
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   min-height: 2.5rem;
   border-radius: 999px;
   padding: 0 0.95rem;

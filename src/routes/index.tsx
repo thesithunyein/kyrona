@@ -243,11 +243,11 @@ function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
           <p className="kicker">{accountId ? "On chain" : "Balances"}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm text-muted">
-              USDC
+              <AssetName asset="USDC" />
               <input inputMode="decimal" value={usdc} onChange={(e) => setUsdc(e.target.value)} readOnly={Boolean(accountId)} className="field nums" placeholder="0" />
             </label>
             <label className="grid gap-1.5 text-sm text-muted">
-              NEAR
+              <AssetName asset="NEAR" />
               <input inputMode="decimal" value={near} onChange={(e) => setNear(e.target.value)} readOnly={Boolean(accountId)} className="field nums" placeholder="0" />
             </label>
           </div>
@@ -268,8 +268,8 @@ function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
           {chainError && <p className="mt-3 text-sm text-danger">{chainError}</p>}
         </div>
         <div className="grid gap-4">
-          <Stat label="USDC today" value={`$${usdcSpent}`} used={usdcSpent} cap={rules.dailyUsdc} note={`$${rules.maxUsdc} per payment`} />
-          <Stat label="NEAR today" value={`${nearSpent}`} used={nearSpent} cap={rules.dailyNear} note={`${rules.maxNear} per payment`} />
+          <Stat asset="USDC" label="USDC today" value={`$${usdcSpent}`} used={usdcSpent} cap={rules.dailyUsdc} note={`$${rules.maxUsdc} per payment`} />
+          <Stat asset="NEAR" label="NEAR today" value={`${nearSpent}`} used={nearSpent} cap={rules.dailyNear} note={`${rules.maxNear} per payment`} />
         </div>
       </section>
 
@@ -441,8 +441,9 @@ function Pay() {
                 key={item}
                 type="button"
                 onClick={() => setAsset(item)}
-                className={`chip ${asset === item ? "bg-fg text-bg" : "btn-quiet"}`}
+                className={`chip ${asset === item ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_#003834]" : "btn-quiet"}`}
               >
+                <AssetMark asset={item} />
                 {item}
               </button>
             ))}
@@ -551,10 +552,10 @@ function Rules() {
         <p className="kicker">Limits</p>
         <h1 className="display mt-3 text-4xl">The limits.</h1>
         <div className="mt-6 grid gap-4">
-          <NumberField label="Max USDC per payment" value={rules.maxUsdc} onChange={(n) => setRules({ maxUsdc: n })} />
-          <NumberField label="USDC per day" value={rules.dailyUsdc} onChange={(n) => setRules({ dailyUsdc: n })} />
-          <NumberField label="Max NEAR per payment" value={rules.maxNear} onChange={(n) => setRules({ maxNear: n })} />
-          <NumberField label="NEAR per day" value={rules.dailyNear} onChange={(n) => setRules({ dailyNear: n })} />
+          <NumberField asset="USDC" label="Max per payment" value={rules.maxUsdc} onChange={(n) => setRules({ maxUsdc: n })} />
+          <NumberField asset="USDC" label="Per day" value={rules.dailyUsdc} onChange={(n) => setRules({ dailyUsdc: n })} />
+          <NumberField asset="NEAR" label="Max per payment" value={rules.maxNear} onChange={(n) => setRules({ maxNear: n })} />
+          <NumberField asset="NEAR" label="Per day" value={rules.dailyNear} onChange={(n) => setRules({ dailyNear: n })} />
           <div className="flex gap-2">
             {(["USDC", "NEAR"] as Asset[]).map((asset) => {
               const on = rules.allowedAssets.includes(asset);
@@ -563,9 +564,10 @@ function Rules() {
                   key={asset}
                   type="button"
                   onClick={() => toggleAsset(asset)}
-                className={`chip ${on ? "bg-fg text-bg" : "btn-quiet"}`}
+                className={`chip ${on ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_#003834]" : "btn-quiet"}`}
                 >
-                  {on ? `${asset} on` : `${asset} off`}
+                  <AssetMark asset={asset} />
+                  {on ? "On" : "Off"}
                 </button>
               );
             })}
@@ -669,12 +671,12 @@ function DecisionSummary({ decision }: { decision: Decision }) {
   );
 }
 
-function Stat({ label, value, used, cap, note }: { label: string; value: string; used: number; cap: number; note: string }) {
+function Stat({ asset, label, value, used, cap, note }: { asset: Asset; label: string; value: string; used: number; cap: number; note: string }) {
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
   return (
     <div className="card px-4 py-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="kicker">{label}</p>
+        <AssetName asset={asset} label={label} />
         <p className="nums text-xs text-muted">{pct}%</p>
       </div>
       <p className="display nums mt-2 text-3xl">{value}</p>
@@ -969,10 +971,43 @@ function Mark({ className = "h-8 w-auto" }: { className?: string }) {
   return <img src="/logo.png" alt="" className={className} />;
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+function AssetMark({ asset, className = "size-4 shrink-0" }: { asset: Asset; className?: string }) {
+  if (asset === "USDC") {
+    return (
+      <svg viewBox="0 0 96 96" className={className} aria-hidden="true">
+        <path d="M48 95C73.9574 95 95 73.9574 95 48C95 22.0426 73.9574 1 48 1C22.0426 1 1 22.0426 1 48C1 73.9574 22.0426 95 48 95Z" fill="#0B53BF" />
+        <path d="M56.4609 13.7778V19.8291C68.5341 23.4716 77.3759 34.6928 77.3759 47.9997C77.3759 61.3066 68.5341 72.5278 56.4609 76.1703V82.2216C71.8534 78.4616 83.2509 64.5672 83.2509 47.9997C83.2509 31.4322 71.8534 17.5378 56.4609 13.7778Z" fill="white" />
+        <path d="M18.625 47.9997C18.625 34.6928 27.4669 23.4716 39.54 19.8291V13.7778C24.1475 17.5378 12.75 31.4322 12.75 47.9997C12.75 64.5672 24.1475 78.4616 39.54 82.2216V76.1703C27.4669 72.5572 18.625 61.3066 18.625 47.9997Z" fill="white" />
+        <path d="M60.6319 54.5506C60.6319 42.5362 41.8025 47.4713 41.8025 40.8325C41.8025 38.4531 43.7119 36.9256 47.3544 36.9256C51.7019 36.9256 53.2 39.0406 53.67 41.89H59.6625C59.1279 36.5426 56.0588 33.1662 50.9382 32.1604V27.4375H45.0632V31.9918C39.4534 32.7062 35.9275 35.973 35.9275 40.8325C35.9275 52.9056 54.7863 48.3819 54.7863 54.9031C54.7863 57.3706 52.4069 59.0156 48.3825 59.0156C43.1244 59.0156 41.3913 56.695 40.745 53.4931H34.8994C35.2781 59.3502 38.8897 63.0159 45.0632 63.9307V68.5625H50.9382V63.9923C56.9633 63.2139 60.6319 59.7089 60.6319 54.5506Z" fill="white" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 288 288" className={className} aria-hidden="true">
+      <path
+        fill="#000"
+        d="M187.58 79.81l-30.1 44.69a3.2 3.2 0 0 0 4.75 4.2L191.86 103a1.2 1.2 0 0 1 2 .91v80.46a1.2 1.2 0 0 1-2.12.77L102.18 77.93A15.35 15.35 0 0 0 90.47 72.5H87.34A15.34 15.34 0 0 0 72 87.84v113.32A15.34 15.34 0 0 0 87.34 216.5a15.35 15.35 0 0 0 13.08-7.31l30.1-44.69a3.2 3.2 0 0 0-4.75-4.2L96.14 186a1.2 1.2 0 0 1-2-.91V104.61a1.2 1.2 0 0 1 2.12-.77l89.55 107.23a15.35 15.35 0 0 0 11.71 5.43h3.13A15.34 15.34 0 0 0 216 201.16V87.84A15.34 15.34 0 0 0 200.66 72.5a15.35 15.35 0 0 0-13.08 7.31Z"
+      />
+    </svg>
+  );
+}
+
+function AssetName({ asset, label }: { asset: Asset; label?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-muted">
+      <AssetMark asset={asset} />
+      {label ?? asset}
+    </span>
+  );
+}
+
+function NumberField({ asset, label, value, onChange }: { asset?: Asset; label: string; value: number; onChange: (n: number) => void }) {
   return (
     <label className="grid gap-2 text-sm">
-      <span>{label}</span>
+      <span className="inline-flex items-center gap-2 text-muted">
+        {asset ? <AssetMark asset={asset} /> : null}
+        {label}
+      </span>
       <input
         inputMode="decimal"
         defaultValue={value}
