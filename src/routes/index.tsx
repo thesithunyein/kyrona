@@ -699,26 +699,30 @@ function Feature({ label, children }: { label: string; children: ReactNode }) {
 
 function IconPeople() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
-      <path d="M8.2 10.2a2.1 2.1 0 1 0 0-4.2 2.1 2.1 0 0 0 0 4.2ZM4.6 17.6c.4-2.2 2-3.4 3.6-3.4s3.2 1.2 3.6 3.4" />
-      <path d="M15.6 10.6a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4ZM14.2 14.6c1.3.3 2.3 1.2 2.8 2.8" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="2.25" />
+      <path d="M4.5 17.5c.7-2.4 2.5-3.6 4.5-3.6s3.8 1.2 4.5 3.6" />
+      <circle cx="16.25" cy="8.75" r="1.75" />
+      <path d="M15 14.2c1.35.35 2.4 1.25 2.9 2.7" />
     </svg>
   );
 }
 
 function IconLimit() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
-      <path d="M5 6.5h14" />
-      <path d="M7 6.5V17M12 6.5V13M17 6.5V10" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M8 7v4.5M12 7v8M16 7v6" />
+      <path d="M5 18h14" />
     </svg>
   );
 }
 
 function IconGate() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="miter" aria-hidden="true">
-      <path d="M5 12.5 9.2 17 19 7" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M8.2 12.2 10.8 14.8 15.8 9.4" />
     </svg>
   );
 }
