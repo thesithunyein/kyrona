@@ -775,7 +775,7 @@ function OnChain() {
     let current = true;
     contractLive(accountId)
       .then((yes) => current && setLive(yes))
-      .catch(() => current && setNote("Could not reach the chain. Refresh the page."));
+      .catch((error: unknown) => current && setNote(error instanceof Error ? error.message : "Could not reach the chain."));
     setHeld(limitedKeyStored(accountId));
     return () => {
       current = false;

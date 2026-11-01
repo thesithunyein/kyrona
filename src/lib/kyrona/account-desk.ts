@@ -1,7 +1,7 @@
 import type { Decision, Rules } from "./engine";
 
 const SOCIAL = "social.near";
-const RPC = "https://rpc.mainnet.near.org";
+const RPC = "https://free.rpc.fastnear.com";
 
 export type DeskSnapshot = {
   v: 1;

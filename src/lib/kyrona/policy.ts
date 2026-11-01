@@ -1,7 +1,7 @@
 import { isNearAccount } from "./chain";
 import type { Rules } from "./engine";
 
-const RPC = "https://rpc.mainnet.near.org";
+const RPCS = ["https://free.rpc.fastnear.com", "https://rpc.mainnet.near.org", "https://rpc.intea.rs"];
 const EMPTY_CODE = "11111111111111111111111111111111";
 
 export type ChainRules = {
@@ -95,12 +95,31 @@ async function view<T>(contract: string, method: string, args: unknown) {
 }
 
 async function rpc<T>(method: string, params: unknown) {
-  const response = await fetch(RPC, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: "kyrona", method, params }),
-  });
-  const body = (await response.json()) as { result?: T; error?: { message?: string } };
-  if (body.error) throw new Error(body.error.message || "The chain did not answer.");
-  return body.result as T;
+  let last = "The chain did not answer.";
+  for (const url of RPCS) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "kyrona", method, params }),
+      });
+      if (!response.ok) {
+        last = `${url} returned ${response.status}`;
+        continue;
+      }
+      const body = (await response.json()) as { result?: T; error?: { message?: string; data?: unknown } };
+      if (body.error) {
+        const detail = body.error.data ? JSON.stringify(body.error.data) : "";
+        const message = `${body.error.message || "The chain did not answer."} ${detail}`;
+        if (message.includes("does not exist") || message.includes("UNKNOWN_ACCOUNT")) throw new Error(message);
+        last = message.slice(0, 180);
+        continue;
+      }
+      return body.result as T;
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes("does not exist") || error.message.includes("UNKNOWN_ACCOUNT"))) throw error;
+      last = error instanceof Error ? error.message : last;
+    }
+  }
+  throw new Error(last);
 }

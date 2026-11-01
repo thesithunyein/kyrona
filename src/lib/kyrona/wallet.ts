@@ -166,7 +166,7 @@ export async function putRulesWithKey(accountId: string, rules: Rules, secret: s
   const calls = live ? [near.functionCall("set_rules", args, GAS, 0n)] : await deployActions(accountId, near, args);
   const account = new Account(
     accountId,
-    new JsonRpcProvider({ url: "https://rpc.mainnet.near.org" }),
+    new JsonRpcProvider({ url: "https://free.rpc.fastnear.com" }),
     KeyPairSigner.fromSecretKey(trimmed as `ed25519:${string}`),
   );
   const outcome = await account.signAndSendTransaction({
@@ -258,7 +258,7 @@ async function signLimited(
     import("@near-js/accounts"),
   ]);
   const signer = KeyPairSigner.fromSecretKey(secret as `${"ed25519" | "secp256k1"}:${string}`);
-  const account = new Account(accountId, new JsonRpcProvider({ url: "https://rpc.mainnet.near.org" }), signer);
+  const account = new Account(accountId, new JsonRpcProvider({ url: "https://free.rpc.fastnear.com" }), signer);
   return account.signAndSendTransaction({
     receiverId,
     actions: calls,
