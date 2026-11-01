@@ -1,4 +1,4 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
@@ -48,4 +48,21 @@ export const Route = createRootRoute({
       </body>
     </html>
   ),
+  notFoundComponent: NotFound,
 });
+
+function NotFound() {
+  return (
+    <main className="grid min-h-dvh place-items-center px-6">
+      <div className="grid max-w-sm justify-items-center text-center">
+        <img src="/logo.png" alt="" className="h-12 w-auto" />
+        <p className="kicker mt-8">404</p>
+        <h1 className="display mt-3 text-4xl">This page is not here.</h1>
+        <p className="mt-3 text-sm text-muted">The desk is on the home page.</p>
+        <Link to="/" className="btn btn-ink mt-6">
+          Back to the desk
+        </Link>
+      </div>
+    </main>
+  );
+}
