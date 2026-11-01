@@ -37,8 +37,8 @@
   }
 
   ::selection {
-    background: #003834;
-    color: #f3f6f4;
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   input,
@@ -46,6 +46,39 @@
     color: var(--color-fg);
     background: transparent;
   }
+}
+
+html.dark {
+  --color-bg: #071614;
+  --color-surface: #10211e;
+  --color-raised: #1a2e2a;
+  --color-fg: #e7f3ef;
+  --color-muted: #8aa39c;
+  --color-line: #243833;
+  --color-accent: #e7f3ef;
+  --color-accent-ink: #071614;
+  --color-danger: #e07a7a;
+  --color-ok: #3dbe7a;
+  --color-brass: #e7f3ef;
+  --color-warn: #e2c27a;
+  color-scheme: dark;
+}
+
+html.dark .mark {
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+}
+
+html.dark .vault-spin {
+  border-color: color-mix(in srgb, #e7f3ef 28%, transparent);
+}
+
+html.dark .vault-spin-b {
+  border-color: color-mix(in srgb, #e7f3ef 45%, transparent);
+}
+
+html.dark .tabbar {
+  background: color-mix(in srgb, var(--color-bg) 92%, black);
 }
 
 .kicker {

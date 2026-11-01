@@ -158,6 +158,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
             </button>
           ))}
         </nav>
+        <ThemeToggle />
         <button
           type="button"
           onClick={() => setRules({ killSwitch: !kill })}
@@ -442,7 +443,7 @@ function Pay() {
                 key={item}
                 type="button"
                 onClick={() => setAsset(item)}
-                className={`chip ${asset === item ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_#003834]" : "btn-quiet"}`}
+                className={`chip ${asset === item ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_var(--color-fg)]" : "btn-quiet"}`}
               >
                 <AssetMark asset={item} />
                 {item}
@@ -565,7 +566,7 @@ function Rules() {
                   key={asset}
                   type="button"
                   onClick={() => toggleAsset(asset)}
-                className={`chip ${on ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_#003834]" : "btn-quiet"}`}
+                className={`chip ${on ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_var(--color-fg)]" : "btn-quiet"}`}
                 >
                   <AssetMark asset={asset} />
                   {on ? "On" : "Off"}
@@ -973,7 +974,26 @@ function Vault({ open }: { open: boolean }) {
 }
 
 function Mark({ className = "h-8 w-auto" }: { className?: string }) {
-  return <img src="/logo.png" alt="" className={className} />;
+  return <img src="/logo.png" alt="" className={`mark ${className}`} />;
+}
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+  function toggle() {
+    const next = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("kyrona-theme", next ? "dark" : "light");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next ? "#071614" : "#003834");
+    setDark(next);
+  }
+  return (
+    <button type="button" onClick={toggle} className="inline-flex min-h-10 items-center rounded-full bg-raised px-3 text-xs font-medium text-muted">
+      {dark ? "Light" : "Dark"}
+    </button>
+  );
 }
 
 function AssetMark({ asset, className = "size-4 shrink-0" }: { asset: Asset; className?: string }) {
@@ -990,7 +1010,7 @@ function AssetMark({ asset, className = "size-4 shrink-0" }: { asset: Asset; cla
   return (
     <svg viewBox="0 0 288 288" className={className} aria-hidden="true">
       <path
-        fill="#000"
+        fill="currentColor"
         d="M187.58 79.81l-30.1 44.69a3.2 3.2 0 0 0 4.75 4.2L191.86 103a1.2 1.2 0 0 1 2 .91v80.46a1.2 1.2 0 0 1-2.12.77L102.18 77.93A15.35 15.35 0 0 0 90.47 72.5H87.34A15.34 15.34 0 0 0 72 87.84v113.32A15.34 15.34 0 0 0 87.34 216.5a15.35 15.35 0 0 0 13.08-7.31l30.1-44.69a3.2 3.2 0 0 0-4.75-4.2L96.14 186a1.2 1.2 0 0 1-2-.91V104.61a1.2 1.2 0 0 1 2.12-.77l89.55 107.23a15.35 15.35 0 0 0 11.71 5.43h3.13A15.34 15.34 0 0 0 216 201.16V87.84A15.34 15.34 0 0 0 200.66 72.5a15.35 15.35 0 0 0-13.08 7.31Z"
       />
     </svg>

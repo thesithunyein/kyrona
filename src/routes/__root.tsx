@@ -34,7 +34,7 @@ export const Route = createRootRoute({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "globalThis.global=globalThis;globalThis.process=globalThis.process||{env:{},browser:true,version:'',versions:{}};",
+            "globalThis.global=globalThis;globalThis.process=globalThis.process||{env:{},browser:true,version:'',versions:{}};try{var t=localStorage.getItem('kyrona-theme');if(t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','#071614');}}catch(e){}",
           }}
         />
         <HeadContent />
