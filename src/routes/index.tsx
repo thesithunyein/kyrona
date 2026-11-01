@@ -805,7 +805,9 @@ function OnChain() {
       <p className="mt-3 max-w-2xl text-sm text-muted">
         {live
           ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
-          : "Meteor will not put code on your main account. This creates rules." + (accountId ?? "yourname.near") + ", which you still control. About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
+          : "Meteor blocks every app from deploying code, so this one step needs MyNearWallet. It creates rules." +
+            (accountId ?? "yourname.near") +
+            ", which you still control. About 0.84 NEAR moves there. 0.79 stays locked for the code. 0.05 can be paid out."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} />}
       <div className="mt-5 flex flex-wrap gap-2">
