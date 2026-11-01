@@ -75,18 +75,20 @@ On the rules account, `pay` repeats the lock, the list, and both caps. USDC does
 
 ## Proof
 
-`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is that same account. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open.
+`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near` and `vendor.sithunyein.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out.
 
-A limited key on `sithunyein.near` can call `pay` and nothing else. Two attempts with that key failed, which is the point:
+A limited key on `sithunyein.near` can call `pay` and nothing else. It cannot transfer, add a key, or deploy code.
 
-- Paying an account that is not on the list panicked in the contract: `Not on the list`.
-- A direct transfer was rejected by the protocol. That key is not allowed to transfer.
+| What the limited key tried | Result |
+|---|---|
+| `pay` to `outside.near` | The contract panicked: `Not on the list`. |
+| A direct transfer | The protocol rejected it. That key may only call `pay`. |
+| `pay` 0.01 NEAR to `sithunyein.near` | [EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd) |
+| `pay` 0.01 NEAR to `vendor.sithunyein.near` | [2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk](https://nearblocks.io/txns/2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk) |
 
-The payment that passed is a real call to `pay`, not a transfer typed into the wallet:
+The second payment is the one to record. The signer was `sithunyein.near`. The call went to `rules.sithunyein.near`. The contract sent 0.01 NEAR to `vendor.sithunyein.near`. No wallet window opened. The same key had just been refused for `outside.near`.
 
-[0.01 NEAR from `rules.sithunyein.near` to `sithunyein.near`](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd)
-
-The contract recorded 0.01 NEAR spent today. The signer was `sithunyein.near`. The receiver of the call was `rules.sithunyein.near`.
+`vendor.sithunyein.near` can receive NEAR. It has no key, because Meteor blocks adding one. The NEAR sent there stays there. The contract has recorded 0.02 NEAR spent.
 
 ## Use it
 
@@ -99,9 +101,9 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
 6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
 7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 0.79 NEAR moves. About 0.74 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
-8. **1. Create the other account** makes `vendor.<your account>` and puts it on the list. The new account can receive NEAR. It has no key of its own, because Meteor blocks adding one. Approve both wallet prompts.
-9. **2. Add 0.2 NEAR** moves spare NEAR onto the rules account so it can pay more than once. It does not send 1 NEAR, because the connected account does not hold that much.
-10. **3. Run the agent** uses only the limited key. It tries `outside.near` and is refused. It then pays 0.01 NEAR to the vendor account. No wallet window opens.
+8. **1. Create the other account** makes `vendor.<your account>` and puts it on the list. Approve both prompts. The new account can receive. It has no key, because Meteor blocks adding one. On this deployment that account is `vendor.sithunyein.near`.
+9. **2. Add 0.2 NEAR** moves spare NEAR onto the rules account so `pay` can run more than once. It does not send 1 NEAR. This account did not hold that much.
+10. **3. Run the agent** uses only the limited key in this browser. It is not a separate program. It tries `outside.near` and is refused, then pays 0.01 NEAR to the vendor account. No wallet window opens. The hash from this deployment is [2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk](https://nearblocks.io/txns/2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk).
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 
@@ -110,7 +112,7 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 - Kyrona does not custody a pool of funds. The rules account is a sub-account you still control. Your full-access key is on it, so you can move that NEAR without calling `pay`. The limited key cannot.
 - Before the rules are on the account, they are enforced in the page. A transfer started directly in the wallet is not checked.
 - USDC is checked in the page and sent with `ft_transfer`. It does not pass through `pay`.
-- There is no cross-chain swap and no private computation.
+- There is no separate agent process and no private computation. **Run the agent** is the limited key already in the browser.
 - The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
 
 ## In the code
