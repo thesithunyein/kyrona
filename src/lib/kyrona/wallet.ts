@@ -1,5 +1,5 @@
 import type { WalletSelector } from "@near-wallet-selector/core";
-import { contractLive, ownerKey, ruleArgs, rulesAccount } from "./policy";
+import { contractLive, ownerKey, readChainRules, ruleArgs, rulesAccount } from "./policy";
 import type { Rules } from "./engine";
 import { USDC_CONTRACT, USDC_STORAGE_DEPOSIT, needsUsdcRegistration, toUnits } from "./chain";
 import { SOCIAL, deskData, socialDeposit, type DeskSnapshot } from "./account-desk";
@@ -242,6 +242,90 @@ export async function showKeyLimits(accountId: string) {
     (error: unknown) => textOf(error),
   );
   return { pay, transfer };
+}
+
+export function vendorAccount(accountId: string) {
+  return `vendor.${accountId}`;
+}
+
+async function accountExists(accountId: string) {
+  const response = await fetch("https://free.rpc.fastnear.com", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: "kyrona",
+      method: "query",
+      params: { request_type: "view_account", finality: "final", account_id: accountId },
+    }),
+  });
+  const body = (await response.json()) as { result?: { amount: string }; error?: { message?: string } };
+  if (body.result) return true;
+  if (JSON.stringify(body.error || "").includes("UNKNOWN_ACCOUNT") || (body.error?.message || "").includes("does not exist")) return false;
+  throw new Error(body.error?.message || "The chain did not answer.");
+}
+
+export async function createVendor(accountId: string) {
+  const vendor = vendorAccount(accountId);
+  const near = await actions();
+  const selector = await getSelector();
+  const wallet = await selector.wallet();
+  if (!(await accountExists(vendor))) {
+    const { PublicKey } = await import("@near-js/crypto");
+    await wallet.signAndSendTransaction({
+      signerId: accountId,
+      receiverId: vendor,
+      actions: [
+        near.createAccount(),
+        near.transfer(50_000_000_000_000_000_000_000n),
+        near.addKey(PublicKey.from(await ownerKey(accountId)), near.fullAccessKey()),
+      ],
+    });
+  }
+  const current = await readChainRules(accountId);
+  if (!current) throw new Error("The rules account is not on the chain.");
+  const allowed = [...new Set([...current.allowed, vendor])];
+  const outcome = await wallet.signAndSendTransaction({
+    signerId: accountId,
+    receiverId: rulesAccount(accountId),
+    actions: [
+      near.functionCall(
+        "set_rules",
+        { max_per_payment: current.max_per_payment, daily_cap: current.daily_cap, open: current.open, allowed },
+        GAS,
+        0n,
+      ),
+    ],
+  });
+  return hashOf(outcome);
+}
+
+export async function fundRules(accountId: string) {
+  const near = await actions();
+  const selector = await getSelector();
+  const wallet = await selector.wallet();
+  const outcome = await wallet.signAndSendTransaction({
+    signerId: accountId,
+    receiverId: rulesAccount(accountId),
+    actions: [near.transfer(200_000_000_000_000_000_000_000n)],
+  });
+  return hashOf(outcome);
+}
+
+export async function runAgent(accountId: string) {
+  const vendor = vendorAccount(accountId);
+  const near = await actions();
+  const gas = 15_000_000_000_000n;
+  const contractId = rulesAccount(accountId);
+  const refused = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, gas, 0n)]).then(
+    () => "The unknown account was paid.",
+    (error: unknown) => textOf(error),
+  );
+  if (!refused.toLowerCase().includes("not on the list")) throw new Error(refused);
+  const paid = await signLimited(accountId, contractId, [
+    near.functionCall("pay", { to: vendor, amount: toUnits("0.01", 24) }, gas, 0n),
+  ]);
+  return `Refused outside.near. Paid ${vendor}: ${hashOf(paid)}`;
 }
 
 async function signLimited(

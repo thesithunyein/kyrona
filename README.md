@@ -99,6 +99,9 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
 6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
 7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 0.79 NEAR moves. About 0.74 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
+8. **1. Create the other account** makes `vendor.<your account>`, which you control, and puts it on the list. Approve both wallet prompts.
+9. **2. Add 0.2 NEAR** moves spare NEAR onto the rules account so it can pay more than once. It does not send 1 NEAR, because the connected account does not hold that much.
+10. **3. Run the agent** uses only the limited key. It tries `outside.near` and is refused. It then pays 0.01 NEAR to the vendor account. No wallet window opens.
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 

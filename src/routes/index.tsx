@@ -14,7 +14,7 @@ import { readBalances, isNearAccount } from "@/lib/kyrona/chain";
 import { contractLive, nearLabel, readChainRules } from "@/lib/kyrona/policy";
 import { useDesk } from "@/lib/kyrona/store";
 import { openAccount } from "@/lib/kyrona/session";
-import { addLimitedPayKey, connectWallet, disconnectWallet, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, putRulesWithKey, restoreWallet, saveDeskOnAccount, sendOnNear, showKeyLimits } from "@/lib/kyrona/wallet";
+import { addLimitedPayKey, connectWallet, createVendor, disconnectWallet, fundRules, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, putRulesWithKey, restoreWallet, runAgent, saveDeskOnAccount, sendOnNear, showKeyLimits, vendorAccount } from "@/lib/kyrona/wallet";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -769,6 +769,8 @@ function OnChain() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [secret, setSecret] = useState("");
+  const [seen, setSeen] = useState(0);
+  const addRecipient = useDesk((s) => s.addRecipient);
 
   useEffect(() => {
     if (!accountId) return;
@@ -794,6 +796,7 @@ function OnChain() {
       setNote(done || (typeof result === "string" ? result : "Done."));
       setLive(await contractLive(accountId).catch(() => live));
       setHeld(limitedKeyStored(accountId));
+      setSeen((value) => value + 1);
     } catch (error) {
       setNote(error instanceof Error ? error.message : "The wallet did not approve it.");
     } finally {
@@ -814,7 +817,7 @@ function OnChain() {
               ". About 0.79 NEAR moves there. 0.74 stays locked for the code. 0.05 can be paid out."
             : "Checking the account."}
       </p>
-      {accountId && live && <ChainSummary accountId={accountId} />}
+      {accountId && live && <ChainSummary accountId={accountId} seen={seen} />}
       <div className="mt-5 grid gap-2">
         {live === false && (
           <>
@@ -867,12 +870,40 @@ function OnChain() {
           Try to break it
         </button>
       </div>
+      {live === true && accountId && (
+        <div className="mt-5 grid gap-2">
+          <p className="text-sm font-medium">The three proofs</p>
+          <button
+            type="button"
+            disabled={busy}
+            className="btn btn-quiet"
+            onClick={() =>
+              run(async () => {
+                const hash = await createVendor(accountId);
+                const vendor = vendorAccount(accountId);
+                if (!useDesk.getState().rules.recipients.some((person) => person.account === vendor)) {
+                  addRecipient({ label: "Vendor", account: vendor, role: "The other account" });
+                }
+                return hash;
+              }, `${vendorAccount(accountId)} is on the list.`)
+            }
+          >
+            {busy ? "Waiting for the wallet" : "1. Create the other account"}
+          </button>
+          <button type="button" disabled={busy} className="btn btn-quiet" onClick={() => run(() => fundRules(accountId), "0.2 NEAR was added. That is what this account can spare.")}>
+            {busy ? "Waiting for the wallet" : "2. Add 0.2 NEAR"}
+          </button>
+          <button type="button" disabled={busy || !held} className="btn btn-ink" onClick={() => run(() => runAgent(accountId), "")}>
+            {busy ? "The agent is paying" : "3. Run the agent"}
+          </button>
+        </div>
+      )}
       {note && <p className="mt-3 text-sm text-muted">{note}</p>}
     </section>
   );
 }
 
-function ChainSummary({ accountId }: { accountId: string }) {
+function ChainSummary({ accountId, seen }: { accountId: string; seen: number }) {
   const [line, setLine] = useState("Reading the account.");
   useEffect(() => {
     let current = true;
@@ -884,7 +915,7 @@ function ChainSummary({ accountId }: { accountId: string }) {
     return () => {
       current = false;
     };
-  }, [accountId]);
+  }, [accountId, seen]);
   return <p className="mt-3 text-sm">{line}</p>;
 }
 
