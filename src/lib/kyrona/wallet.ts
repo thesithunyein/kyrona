@@ -271,15 +271,10 @@ export async function createVendor(accountId: string) {
   const selector = await getSelector();
   const wallet = await selector.wallet();
   if (!(await accountExists(vendor))) {
-    const { PublicKey } = await import("@near-js/crypto");
     await wallet.signAndSendTransaction({
       signerId: accountId,
       receiverId: vendor,
-      actions: [
-        near.createAccount(),
-        near.transfer(50_000_000_000_000_000_000_000n),
-        near.addKey(PublicKey.from(await ownerKey(accountId)), near.fullAccessKey()),
-      ],
+      actions: [near.createAccount(), near.transfer(50_000_000_000_000_000_000_000n)],
     });
   }
   const current = await readChainRules(accountId);
