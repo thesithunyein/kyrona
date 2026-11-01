@@ -27,7 +27,7 @@
 
 Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules live on `rules.sithunyein.near`. A payment has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR.
 
-The payment to open first is [0.01 NEAR to `kyawminthat.near`](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR). That account was not created by this project. The call was `pay`, not a transfer typed into a wallet.
+The payment to open first is [0.01 NEAR sent by the agent script to `kyawminthat.near`](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). That account was not created by this project. The script holds a key that can only call `pay`.
 
 ![The desk before a wallet is connected](docs/desk.png)
 
@@ -77,15 +77,15 @@ On the rules account, `pay` repeats the lock, the list, and both caps. USDC does
 
 ## Proof
 
-Open this first: [0.01 NEAR from `rules.sithunyein.near` to `kyawminthat.near`](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR).
+Open this first: [0.01 NEAR sent by `scripts/agent.mjs` to `kyawminthat.near`](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2).
 
-The signer was `sithunyein.near`. The call went to `rules.sithunyein.near`, method `pay`. The contract then transferred 0.01 NEAR. `kyawminthat.near` was not created by this account. The same key cannot transfer on its own, and it cannot pay an account that is not on the list.
+That program is not the website. Before paying, it was refused for `outside.near`, and it was refused when it tried to transfer. The same limited key then called `pay`. `kyawminthat.near` now holds 0.02 NEAR: 0.01 from the page, then 0.01 from the script. The earlier page payment is [5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR).
 
-`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out. The contract has recorded 0.03 NEAR spent.
+`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out. The contract has recorded 0.04 NEAR spent.
 
 | What the limited key tried | Result |
 |---|---|
-| `pay` 0.01 NEAR to `kyawminthat.near` | [5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR) |
+| `scripts/agent.mjs` paid 0.01 NEAR to `kyawminthat.near` | [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). Signed by the separate program, not by the page. The key was `ed25519:HVAdkwtDzULFkPmKZNnU5XYGrLXBbmmYcEyLKzQ4n11R`, which can only call `pay`. |
 | `pay` to `outside.near` | Refused. The contract says that account is not on the list. |
 | A direct transfer | Refused by the protocol. The key may only call `pay`. |
 | `pay` 0.01 NEAR to `sithunyein.near` | [EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd). An earlier check. The receiver is the owner. |
@@ -113,7 +113,7 @@ The live desk is [kyrona.vercel.app](https://kyrona.vercel.app). Meteor is a Chr
 - Kyrona does not custody a pool of funds. The rules account is a sub-account you still control. Your full-access key is on it, so you can move that NEAR without calling `pay`. The limited key cannot.
 - Before the rules are on the account, they are enforced in the page. A transfer started directly in the wallet is not checked.
 - USDC is checked in the page and sent with `ft_transfer`. It does not pass through `pay`.
-- There is no private computation. `scripts/agent.mjs` is a separate program. It reads a limited key from the environment, refuses a full-access key, tries an account that is not on the list, tries to transfer, then calls `pay`. The key is not in this repository. The payments in the table above were signed in the browser. A payment signed by the script is labeled as such after it exists.
+- There is no private computation. `scripts/agent.mjs` is a separate program. It reads a limited key from the environment and refuses a full-access key. Its payment is [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). The key is not in this repository.
 - The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
 
 ## In the code
