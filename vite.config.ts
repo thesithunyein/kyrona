@@ -30,6 +30,33 @@ function hasGlobbedMigrations(root: string): boolean {
  * migrations — no schema to apply — skips it entirely rather than paying for a
  * PGLite instance it never queries.
  */
+function walletServerStub(): Plugin {
+  const stubId = "\0kyrona-wallet-stub";
+  const prefixes = ["@near-wallet-selector/", "@meteorwallet/", "@near-js/", "@here-wallet/"];
+  return {
+    name: "kyrona-wallet-server-stub",
+    enforce: "pre",
+    resolveId(source, _importer, options) {
+      const server =
+        options?.ssr === true || (this.environment?.name != null && this.environment.name !== "client");
+      if (!server) return null;
+      if (source === "buffer" || prefixes.some((prefix) => source.startsWith(prefix))) return stubId;
+      return null;
+    },
+    load(id) {
+      if (id !== stubId) return null;
+      return `export default {};
+export const Buffer = globalThis.Buffer;
+export const actionCreators = {};
+export function setupWalletSelector() { throw new Error("Wallet runs in the browser."); }
+export function setupModal() { throw new Error("Wallet runs in the browser."); }
+export function setupMyNearWallet() { throw new Error("Wallet runs in the browser."); }
+export function setupMeteorWallet() { throw new Error("Wallet runs in the browser."); }
+`;
+    },
+  };
+}
+
 function pgliteBootstrapPlugin(): Plugin {
   return {
     name: "app-builder:pglite-bootstrap",
@@ -157,7 +184,17 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  ssr: {
+    external: [
+      "@near-wallet-selector/core",
+      "@near-wallet-selector/modal-ui",
+      "@near-wallet-selector/my-near-wallet",
+      "@near-wallet-selector/meteor-wallet",
+      "buffer",
+    ],
+  },
   plugins: [
+    walletServerStub(),
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),

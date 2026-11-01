@@ -1,10 +1,17 @@
-import { actionCreators, type WalletSelector } from "@near-wallet-selector/core";
+import type { WalletSelector } from "@near-wallet-selector/core";
 import { USDC_CONTRACT, USDC_STORAGE_DEPOSIT, needsUsdcRegistration, toUnits } from "./chain";
 import { SOCIAL, deskData, socialDeposit, type DeskSnapshot } from "./account-desk";
+
+async function actions() {
+  if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
+  const { actionCreators } = await import("@near-wallet-selector/core");
+  return actionCreators;
+}
 
 let selectorPromise: Promise<WalletSelector> | null = null;
 
 async function getSelector() {
+  if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
   if (!selectorPromise) {
     selectorPromise = (async () => {
       const { Buffer } = await import("buffer");
@@ -34,6 +41,7 @@ export async function connectWallet() {
   const selector = await getSelector();
   const existing = await restoreWallet();
   if (existing) return existing;
+  if (import.meta.env.SSR) throw new Error("Wallet runs in the browser.");
   const { setupModal } = await import("@near-wallet-selector/modal-ui");
   await import("@near-wallet-selector/modal-ui/styles.css");
   const modal = setupModal(selector, { description: "Kyrona uses this account to read balances and send." });
@@ -67,17 +75,19 @@ export async function sendOnNear(input: {
   const selector = await getSelector();
   const wallet = await selector.wallet();
   if (input.asset === "NEAR") {
+    const near = await actions();
     const outcome = await wallet.signAndSendTransaction({
       signerId: input.signerId,
       receiverId: input.receiverId,
-      actions: [actionCreators.transfer(BigInt(toUnits(input.amount, 24)))],
+      actions: [near.transfer(BigInt(toUnits(input.amount, 24)))],
     });
     return hashOf(outcome);
   }
-  const actions = [];
+  const near = await actions();
+  const calls = [];
   if (await needsUsdcRegistration(input.receiverId)) {
-    actions.push(
-      actionCreators.functionCall(
+    calls.push(
+      near.functionCall(
         "storage_deposit",
         { account_id: input.receiverId, registration_only: true },
         30_000_000_000_000n,
@@ -85,8 +95,8 @@ export async function sendOnNear(input: {
       ),
     );
   }
-  actions.push(
-    actionCreators.functionCall(
+  calls.push(
+    near.functionCall(
       "ft_transfer",
       { receiver_id: input.receiverId, amount: toUnits(input.amount, 6), memo: input.memo },
       30_000_000_000_000n,
@@ -96,7 +106,7 @@ export async function sendOnNear(input: {
   const outcome = await wallet.signAndSendTransaction({
     signerId: input.signerId,
     receiverId: USDC_CONTRACT,
-    actions,
+    actions: calls,
   });
   return hashOf(outcome);
 }
@@ -104,13 +114,12 @@ export async function sendOnNear(input: {
 export async function saveDeskOnAccount(accountId: string, snapshot: DeskSnapshot) {
   const selector = await getSelector();
   const wallet = await selector.wallet();
+  const near = await actions();
   const data = deskData(accountId, snapshot);
   const outcome = await wallet.signAndSendTransaction({
     signerId: accountId,
     receiverId: SOCIAL,
-    actions: [
-      actionCreators.functionCall("set", { data }, 100_000_000_000_000n, BigInt(socialDeposit(data))),
-    ],
+    actions: [near.functionCall("set", { data }, 100_000_000_000_000n, BigInt(socialDeposit(data)))],
   });
   return hashOf(outcome);
 }
