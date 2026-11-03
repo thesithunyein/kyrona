@@ -12,6 +12,7 @@
   <a href="https://kyrona.vercel.app"><img src="https://img.shields.io/badge/live-kyrona.vercel.app-003834" alt="Live site"></a>
   <img src="https://img.shields.io/badge/network-NEAR%20mainnet-003834" alt="NEAR mainnet">
   <a href="https://nearblocks.io/address/rules.sithunyein.near"><img src="https://img.shields.io/badge/rules-rules.sithunyein.near-003834" alt="Rules account"></a>
+  <a href="https://github.com/thesithunyein/kyrona/actions/workflows/ci.yml"><img src="https://github.com/thesithunyein/kyrona/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-003834" alt="MIT license"></a>
 </p>
 
