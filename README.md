@@ -124,6 +124,10 @@ To use the desk:
 - There is no private computation. `scripts/agent.mjs` is a separate program. It reads a limited key from the environment and refuses a full-access key. Its payment is [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). The key is not in this repository.
 - The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
 
+## The other project
+
+This is the first project. The second is [Hasp](https://github.com/thesithunyein/hasp), a one-shot swap to USDC that refuses an amount over 0.02 NEAR before it asks for a quote. Hasp has no contract and no key. It does not use `rules.sithunyein.near`, the limited key, or this desk. The two do not share code.
+
 ## In the code
 
 The desk is the product. The contract is the part a skipped page cannot bypass.
