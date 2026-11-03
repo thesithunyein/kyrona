@@ -38,6 +38,8 @@ Sending NEAR is easy. Sending the wrong amount, to an account you did not mean, 
 
 Kyrona sits in front of that approval. Once the rules are on their own account, `pay` still checks them even if the page is skipped.
 
+NEAR lets a function-call key be limited to one method on one contract. The payment program holds a key scoped to `pay` on the rules account, so it cannot transfer NEAR, add a key, or deploy code. That limit is enforced by the chain, not by the page.
+
 ## How a payment moves
 
 ```mermaid
@@ -91,6 +93,8 @@ That program is not the website. Before paying, it was refused for `outside.near
 | A direct transfer | Refused by the protocol. The key may only call `pay`. |
 | `pay` 0.01 NEAR to `sithunyein.near` | [EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd). An earlier check. The receiver is the owner. |
 | `pay` 0.01 NEAR to `vendor.sithunyein.near` | [2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk](https://nearblocks.io/txns/2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk). An earlier check. This project created that account. |
+
+The demo shows the allowlist refusal and the payment. The lock and the daily cap are not in the video; both are part of the same `pay` call and are covered by tests in [`contract/src/lib.rs`](https://github.com/thesithunyein/kyrona/blob/main/contract/src/lib.rs).
 
 ## Use it
 
