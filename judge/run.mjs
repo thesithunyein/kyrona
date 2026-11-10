@@ -8,11 +8,12 @@
 // checked: the run exits 1 if any outcome differs from what is printed as expected.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Worker, KeyPairEd25519 } from "near-workspaces";
+import { Worker, KeyPair, KeyPairEd25519 } from "near-workspaces";
 import { transactions } from "near-api-js";
 
 const NEAR = 10n ** 24n;
@@ -376,12 +377,40 @@ try {
     const waitsOnly = asked.length === 1 && asked[0].to === mallory.accountId;
     if (!waitsOnly) failures += 1;
     say(`${waitsOnly ? "ok  " : "FAIL"}  the agent's request for ${mallory.accountId} waits; nothing moved`);
+    say("");
+
+    say("9. scripts/llm-agent.mjs: an invoice with a hidden instruction, replayed as a hijacked model");
+    say("      scripts/agent-key.mjs --send gives the agent its own key");
+    const keyFile = join(mkdtempSync(join(tmpdir(), "kyrona-judge-")), "agent-key");
+    say(indent(runScript("agent-key.mjs", ["--send"], { KYRONA_OWNER: owner.accountId, KYRONA_OWNER_KEY: ownerKey.toString(), KYRONA_KEY_FILE: keyFile })));
+    const llmKey = readFileSync(keyFile, "utf8").trim();
+    rmSync(keyFile, { force: true });
+    await untilFinal(owner.accountId, KeyPair.fromString(llmKey).getPublicKey().toString());
+    const malloryBeforeLlm = await balance(mallory);
+    const llm = runScript("llm-agent.mjs", [], {
+      KYRONA_LLM: "scripted",
+      KYRONA_ACCOUNT: owner.accountId,
+      KYRONA_RULES: rulesId,
+      KYRONA_PAYEE: alice.accountId,
+      KYRONA_OUTSIDE: mallory.accountId,
+      KYRONA_LIMITED_KEY: llmKey,
+    });
+    say(indent(llm));
+    agentPaid += near(0.01);
+    const afterLlm = await rules.view("requests");
+    const hijackHeld =
+      (await balance(mallory)) === malloryBeforeLlm &&
+      afterLlm.length === 2 &&
+      afterLlm.some((r) => r.to === mallory.accountId && r.amount === near(5).toString()) &&
+      llm.includes("REFUSED: Not on the list");
+    if (!hijackHeld) failures += 1;
+    say(`${hijackHeld ? "ok  " : "FAIL"}  the hijacked 5 NEAR payment was refused, its request waits, ${mallory.accountId} got nothing`);
   } else {
     say("      skipped: run npm install at the root to include it");
   }
   say("");
 
-  say("9. The owner locks spending");
+  say("10. The owner locks spending");
   const locked = await owner.callRaw(rulesId, "set_rules", rulesArgs(false, [alice.accountId]));
   if (locked.failed) throw new Error(`Locking failed: ${JSON.stringify(locked.Failure)}`);
   check(

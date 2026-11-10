@@ -11,6 +11,7 @@ const PAYEE = process.env.KYRONA_PAYEE?.trim() || "kyawminthat.near";
 const OUTSIDE = process.env.KYRONA_OUTSIDE?.trim() || "outside.near";
 const RPC = process.env.KYRONA_RPC?.trim() || "https://free.rpc.fastnear.com";
 const GAS = 30_000_000_000_000n;
+const txLink = (hash) => (/127\.0\.0\.1|localhost/.test(RPC) ? `transaction ${hash} on the local node` : `https://nearblocks.io/txns/${hash}`);
 const ALLOWED_METHODS = ["pay", "request"];
 
 const secret = loadSecret();
@@ -61,7 +62,7 @@ const paid = await account.signAndSendTransaction({
 });
 const hash = paid.transaction.hash;
 console.log(`Paid 0.01 NEAR to ${PAYEE}`);
-console.log(`https://nearblocks.io/txns/${hash}`);
+console.log(`${txLink(hash)}`);
 
 if (canRequest) {
   const asked = await account.signAndSendTransaction({
@@ -77,7 +78,7 @@ if (canRequest) {
     throwOnFailure: true,
   });
   console.log(`Asked the owner for 0.01 NEAR to ${OUTSIDE}. Nothing moved; it waits on the desk.`);
-  console.log(`https://nearblocks.io/txns/${asked.transaction.hash}`);
+  console.log(`${txLink(asked.transaction.hash)}`);
 }
 
 function loadSecret() {

@@ -22,6 +22,7 @@ const OWNER = process.env.KYRONA_OWNER?.trim() || "sithunyein.near";
 const RULES = `rules.${OWNER}`;
 const RPC = process.env.KYRONA_RPC?.trim() || "https://free.rpc.fastnear.com";
 const SEND = process.argv.includes("--send");
+const txLink = (hash) => (/127\.0\.0\.1|localhost/.test(RPC) ? `transaction ${hash} on the local node` : `https://nearblocks.io/txns/${hash}`);
 const YOCTO_PER_BYTE = 10n ** 19n; // NEAR storage staking: 1 NEAR per 100 kB
 const NEAR = 10n ** 24n;
 const SPARE = NEAR / 50n; // 0.02 NEAR left over for payouts and future state
@@ -124,7 +125,7 @@ if (topUp > 0n) {
     actions: [actionCreators.transfer(topUp)],
     throwOnFailure: true,
   });
-  console.log(`Topped up ${near(topUp)} NEAR: https://nearblocks.io/txns/${funded.transaction.hash}`);
+  console.log(`Topped up ${near(topUp)} NEAR: ${txLink(funded.transaction.hash)}`);
 }
 
 const rules = new Account(RULES, provider, signer);
@@ -133,7 +134,7 @@ const upgraded = await rules.signAndSendTransaction({
   actions: [actionCreators.deployContract(new Uint8Array(v2)), actionCreators.functionCall("migrate", {}, MIGRATE_GAS, 0n)],
   throwOnFailure: true,
 });
-console.log(`Upgraded: https://nearblocks.io/txns/${upgraded.transaction.hash}`);
+console.log(`Upgraded: ${txLink(upgraded.transaction.hash)}`);
 
 // Reads use final blocks, which trail the transaction by a moment.
 let code = "";
