@@ -20,6 +20,8 @@
 <p align="center">
   <a href="https://kyrona.vercel.app">Open the desk</a>
   ·
+  <a href="https://x.com/thesithunyein/status/2120230253859865019">Demo video</a>
+  ·
   <a href="SECURITY.md">Security</a>
   ·
   <a href="CODE_OF_CONDUCT.md">Code of conduct</a>
@@ -29,7 +31,7 @@
 
 Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules live on `rules.sithunyein.near`. A payment has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR. A payment outside the rules can be asked for with `request` instead: it waits on the rules account until you approve or reject it, and nothing moves before that.
 
-The point is that the AI does not have to behave. On 10 November 2026 an AI agent on NEAR AI Cloud read an invoice with a hidden instruction and obeyed it: it tried to [pay 5 NEAR to `outside.near`](https://nearblocks.io/txns/Dz7GpQ9bBKzuuHXPDZ6H4F15qfAqBu9VExzANT2wzTCK), and the contract refused. It then [filed a request](https://nearblocks.io/txns/HmiwGp5EBTWAHSEcJepCq219pwuYFctzjbZQjpCM4fN8) with a note claiming the owner had pre-approved it, and the owner [rejected it on the desk](https://nearblocks.io/txns/8wCaxdyjZudv11PHtPnPty93FwTxvnWSiLewLHf8c3rc). Nothing reached `outside.near`. The whole run is in [An AI agent, told to pay someone else](#an-ai-agent-told-to-pay-someone-else), and every check can be repeated without a wallet in [Check it yourself](#check-it-yourself-no-wallet).
+The point is that the AI does not have to behave. On 10 November 2026 an AI agent on NEAR AI Cloud read an invoice with a hidden instruction and obeyed it: it tried to [pay 5 NEAR to `outside.near`](https://nearblocks.io/txns/Dz7GpQ9bBKzuuHXPDZ6H4F15qfAqBu9VExzANT2wzTCK), and the contract refused. It then [filed a request](https://nearblocks.io/txns/HmiwGp5EBTWAHSEcJepCq219pwuYFctzjbZQjpCM4fN8) with a note claiming the owner had pre-approved it, and the owner [rejected it on the desk](https://nearblocks.io/txns/8wCaxdyjZudv11PHtPnPty93FwTxvnWSiLewLHf8c3rc). Nothing reached `outside.near`. The whole run is in [An AI agent, told to pay someone else](#an-ai-agent-told-to-pay-someone-else), and every check can be repeated without a wallet in [Check it yourself](#check-it-yourself-no-wallet). The [demo video](https://x.com/thesithunyein/status/2120230253859865019) shows the same run in 90 seconds.
 
 ![The desk before a wallet is connected](docs/desk.png)
 
