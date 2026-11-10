@@ -1,15 +1,17 @@
 // Kyrona judge run: the rules contract on a local NEAR sandbox, attacked with the agent's key.
 //
-// No wallet, no keys, no funds. near-workspaces downloads a local NEAR node on the first run,
-// deploys public/kyrona.wasm (the same file the live desk deploys), and gives an "agent" a
-// function-call key that may only call `pay` on the rules account. Then the agent tries to
-// pay, overpay, pay strangers, and get around the contract. Every line below is checked:
-// the run exits 1 if any outcome differs from what is printed as expected.
+// No wallet, no keys, no funds. near-workspaces downloads a local NEAR node on the first run.
+// The run deploys contract/v1/kyrona-v1.wasm (the exact code on rules.sithunyein.near), upgrades
+// it to public/kyrona.wasm with `migrate` the way the mainnet account is upgraded, and gives an
+// "agent" a function-call key that may only call `pay` and `request`. Then the agent tries to
+// pay, overpay, pay strangers, approve itself, and get around the contract. Every line below is
+// checked: the run exits 1 if any outcome differs from what is printed as expected.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Worker, KeyPairEd25519 } from "near-workspaces";
 import { transactions } from "near-api-js";
 
@@ -38,8 +40,14 @@ function reason(value) {
     "Spending is locked",
     "Only the owner",
     "Amount is empty",
+    "No such request",
+    "Too many requests waiting",
+    "is private",
+    "Only the rules account can migrate",
   ].find((message) => text.includes(message));
   if (known) return known;
+  const panic = text.match(/"ExecutionError":"([^"]+)"/) || text.match(/Smart contract panicked: ([^"\\]+)/);
+  if (panic) return panic[1].slice(0, 220);
   const match = text.match(/"type":"([A-Za-z]+)"|([A-Z][A-Za-z]+(?:Mismatch|Error|Denied|Access[A-Za-z]*))/);
   return (match && (match[1] || match[2])) || text.slice(0, 220);
 }
@@ -68,7 +76,7 @@ async function attempt(run) {
   }
 }
 
-function check(label, got, expected) {
+function check(label, got, expected, done = "PAID") {
   const keyRefusal =
     expected.outcome === "protocol" &&
     got.outcome === "contract" &&
@@ -77,7 +85,7 @@ function check(label, got, expected) {
   const ok = got.outcome === expected.outcome && (!expected.why || got.why.includes(expected.why));
   if (!ok) failures += 1;
   const said =
-    got.outcome === "paid" ? "PAID" : got.outcome === "contract" ? `REFUSED by the contract: ${got.why}` : `REFUSED by NEAR: ${got.why}`;
+    got.outcome === "paid" ? done : got.outcome === "contract" ? `REFUSED by the contract: ${got.why}` : `REFUSED by NEAR: ${got.why}`;
   say(`${ok ? "ok  " : "FAIL"}  ${label}\n      -> ${said}${ok ? "" : `   (expected ${expected.outcome}${expected.why ? `: ${expected.why}` : ""})`}`);
 }
 
@@ -108,6 +116,10 @@ if (existsSync(sandboxBin)) {
   if (!installed.includes(SANDBOX_VERSION)) rmSync(sandboxBin, { force: true });
 }
 
+
+const V1_WASM = new URL("../contract/v1/kyrona-v1.wasm", import.meta.url);
+const V2_WASM = new URL("../public/kyrona.wasm", import.meta.url);
+
 const worker = await Worker.init();
 try {
   const running = (await worker.provider.status()).version.version;
@@ -120,54 +132,115 @@ try {
   const owner = await root.createSubAccount("owner", { initialBalance: near(30) });
   const alice = await root.createSubAccount("alice", { initialBalance: near(1) });
   const mallory = await root.createSubAccount("mallory", { initialBalance: near(1) });
+  const ghost = `ghost.${root.accountId}`; // on the list, but the account does not exist
   const rulesId = `rules.${owner.accountId}`;
+  const rulesArgs = (open, allowed) => ({
+    max_per_payment: PER_PAYMENT.toString(),
+    daily_cap: DAILY_CAP.toString(),
+    open,
+    allowed,
+  });
 
-  say("Kyrona judge run, local NEAR sandbox");
+  say(`Kyrona judge run, local NEAR sandbox (nearcore ${running})`);
   say("");
-  say(`Owner        ${owner.accountId} (full-access key, sets the rules)`);
-  say(`Rules        ${rulesId} (public/kyrona.wasm)`);
+  say(`Owner        ${owner.accountId} (full-access key, sets the rules, approves requests)`);
+  say(`Rules        ${rulesId}`);
   say(`Allowlist    ${alice.accountId}`);
   say(`Stranger     ${mallory.accountId} (not on the list)`);
   say(`Caps         ${fmt(PER_PAYMENT)} NEAR per payment, ${fmt(DAILY_CAP)} NEAR a day`);
   say("");
 
-  // The same single transaction the desk sends: create the rules account, keep the owner's
-  // key on it, deploy the contract, and call `new`, so the owner is the predecessor.
+  // The same single transaction the desk sends: create the rules account, keep the owner's key
+  // on it, deploy the first version, and call `new`, so the owner is the predecessor.
   const ownerKey = await owner.getKey();
-  const wasm = readFileSync(new URL("../public/kyrona.wasm", import.meta.url));
   const deployed = await owner
     .batch(rulesId)
     .createAccount()
     .transfer(near(10))
     .addKey(ownerKey.getPublicKey())
-    .deployContract(wasm)
-    .functionCall(
-      "new",
-      { max_per_payment: PER_PAYMENT.toString(), daily_cap: DAILY_CAP.toString(), open: true, allowed: [alice.accountId] },
-      { gas: 100n * TGAS },
-    )
+    .deployContract(readFileSync(V1_WASM))
+    .functionCall("new", rulesArgs(true, [alice.accountId]), { gas: 100n * TGAS })
     .transact();
   if (deployed.failed) throw new Error(`Deploy failed: ${JSON.stringify(deployed.Failure)}`);
   const rules = owner.getAccount(rulesId);
+  await rules.setKey(ownerKey); // the owner's key is also a full-access key on the rules account
 
-  // The agent's key: a function-call key on the owner's account that can call `pay` on the
-  // rules account and nothing else. NEAR enforces that limit, not this script.
+  // scripts/upgrade.mjs and scripts/agent.mjs are the programs that run on mainnet. When the
+  // app's packages are installed (`npm install` at the root, as CI does), the judge runs them
+  // against this sandbox; otherwise it does the same steps itself.
+  const scriptsReady = existsSync(new URL("../node_modules/@near-js/accounts/package.json", import.meta.url));
+  const rpcUrl = worker.provider.connection.url;
+  const runScript = (name, args, env) => {
+    try {
+      return execFileSync(process.execPath, [fileURLToPath(new URL(`../scripts/${name}`, import.meta.url)), ...args], {
+        env: { ...process.env, KYRONA_RPC: rpcUrl, ...env },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      throw new Error(`scripts/${name} failed:\n${error.stdout ?? ""}${error.stderr ?? ""}`);
+    }
+  };
+  // The scripts build transactions from final blocks, which trail a freshly started sandbox.
+  // Wait until a key just added is final before handing it to them.
+  const untilFinal = async (accountId, publicKey) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const found = await worker.provider
+        .query({ request_type: "view_access_key", account_id: accountId, public_key: publicKey, finality: "final" })
+        .then(() => true, () => false);
+      if (found) return;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`The key on ${accountId} did not become final.`);
+  };
+  const indent = (text) => text.trim().split("\n").map((line) => `      | ${line}`).join("\n");
+
+  say("0. Upgrade the first version in place, as on mainnet");
+  const before = await rules.view("rules");
+  if (scriptsReady) {
+    say("      running scripts/upgrade.mjs --send against this sandbox");
+    await untilFinal(owner.accountId, ownerKey.getPublicKey().toString());
+    await untilFinal(rulesId, ownerKey.getPublicKey().toString());
+    say(indent(runScript("upgrade.mjs", ["--send"], { KYRONA_OWNER: owner.accountId, KYRONA_OWNER_KEY: ownerKey.toString() })));
+  } else {
+    say("      (run npm install at the root to have this step run scripts/upgrade.mjs itself)");
+    const upgraded = await rules
+      .batch(rules)
+      .deployContract(readFileSync(V2_WASM))
+      .functionCall("migrate", {}, { gas: 100n * TGAS })
+      .transact();
+    if (upgraded.failed) throw new Error(`Upgrade failed: ${JSON.stringify(upgraded.Failure)}`);
+  }
+  const after = await rules.view("rules");
+  const kept = ["owner", "max_per_payment", "daily_cap", "open", "spent"].every((k) => after[k] === before[k]) &&
+    JSON.stringify(after.allowed) === JSON.stringify(before.allowed) && after.waiting === 0;
+  if (!kept) failures += 1;
+  say(`${kept ? "ok  " : "FAIL"}  migrate keeps the owner, the list, the caps, the lock and today's spend`);
+  check(
+    "anyone calls migrate again to reset the rules",
+    await attempt(() => owner.callRaw(rulesId, "migrate", {}, { gas: 30n * TGAS })),
+    { outcome: "contract", why: "Only the rules account can migrate" },
+  );
+  say("");
+
+  // The agent's key: a function-call key on the owner's account that can call `pay` and
+  // `request` on the rules account and nothing else. NEAR enforces that limit, not this script.
   const agentKey = KeyPairEd25519.fromRandom();
   const added = await owner
     .batch(owner)
-    .addKey(agentKey.getPublicKey(), transactions.functionCallAccessKey(rulesId, ["pay"], KEY_ALLOWANCE))
+    .addKey(agentKey.getPublicKey(), transactions.functionCallAccessKey(rulesId, ["pay", "request"], KEY_ALLOWANCE))
     .transact();
   if (added.failed) throw new Error(`Adding the agent key failed: ${JSON.stringify(added.Failure)}`);
   say(`Agent key    ${agentKey.getPublicKey().toString()}`);
-  say(`             may call only pay on ${rulesId}`);
+  say(`             may call only pay and request on ${rulesId}`);
   say("");
 
-  const agentPays = (to, amount) =>
-    attempt(() =>
-      owner.callRaw(rulesId, "pay", { to, amount: amount.toString() }, { signWithKey: agentKey, gas: 30n * TGAS }),
-    );
-  const aliceBefore = BigInt((await alice.accountView()).amount);
-  const malloryBefore = BigInt((await mallory.accountView()).amount);
+  const agentCalls = (method, args) =>
+    attempt(() => owner.callRaw(rulesId, method, args, { signWithKey: agentKey, gas: 30n * TGAS }));
+  const agentPays = (to, amount) => agentCalls("pay", { to, amount: amount.toString() });
+  const balance = async (account) => BigInt((await account.accountView()).amount);
+  const aliceBefore = await balance(alice);
+  const malloryBefore = await balance(mallory);
 
   say("1. The agent pays inside the rules");
   check(`pay 1 NEAR to ${alice.accountId}`, await agentPays(alice.accountId, near(1)), { outcome: "paid" });
@@ -198,7 +271,69 @@ try {
   );
   say("");
 
-  say("5. The agent tries to get around the contract with its own key");
+  say("5. Outside the rules, the agent asks the owner instead");
+  check(
+    `request 0.4 NEAR for ${mallory.accountId}, note "new vendor"`,
+    await agentCalls("request", { to: mallory.accountId, amount: near(0.4).toString(), note: "new vendor" }),
+    { outcome: "paid" },
+    "WAITING for the owner",
+  );
+  check(
+    `request 5 NEAR for ${mallory.accountId}, note "urgent"`,
+    await agentCalls("request", { to: mallory.accountId, amount: near(5).toString(), note: "urgent" }),
+    { outcome: "paid" },
+    "WAITING for the owner",
+  );
+  const waiting = await rules.view("requests");
+  const nothingMoved = waiting.length === 2 && (await balance(mallory)) === malloryBefore;
+  if (!nothingMoved) failures += 1;
+  say(`${nothingMoved ? "ok  " : "FAIL"}  two requests wait, and ${mallory.accountId} has received nothing`);
+  check(
+    "the agent approves its own request",
+    await agentCalls("approve", { id: waiting[0].id }),
+    { outcome: "protocol", why: "MethodNameMismatch" },
+  );
+  check(
+    `the owner approves request ${waiting[0].id} (0.4 NEAR)`,
+    await attempt(() => owner.callRaw(rulesId, "approve", { id: waiting[0].id }, { gas: 30n * TGAS })),
+    { outcome: "paid" },
+  );
+  check(
+    `the owner rejects request ${waiting[1].id} (5 NEAR)`,
+    await attempt(() => owner.callRaw(rulesId, "reject", { id: waiting[1].id }, { gas: 30n * TGAS })),
+    { outcome: "paid" },
+    "REJECTED, nothing moved",
+  );
+  check(
+    `the owner approves request ${waiting[0].id} a second time`,
+    await attempt(() => owner.callRaw(rulesId, "approve", { id: waiting[0].id }, { gas: 30n * TGAS })),
+    { outcome: "contract", why: "No such request" },
+  );
+  say("");
+
+  say("6. A payment that fails on the way does not use up the day");
+  const listed = await owner.callRaw(rulesId, "set_rules", rulesArgs(true, [alice.accountId, ghost]));
+  if (listed.failed) throw new Error(`set_rules failed: ${JSON.stringify(listed.Failure)}`);
+  const spentBefore = BigInt((await rules.view("rules")).spent);
+  const toGhost = await owner.callRaw(rulesId, "pay", { to: ghost, amount: near(0.05).toString() }, {
+    signWithKey: agentKey,
+    gas: 30n * TGAS,
+  });
+  const spentAfter = BigInt((await rules.view("rules")).spent);
+  const rolledBack = toGhost.receiptFailureMessages.length > 0 && spentAfter === spentBefore;
+  if (!rolledBack) failures += 1;
+  say(`${rolledBack ? "ok  " : "FAIL"}  pay 0.05 NEAR to ${ghost}, an account that does not exist`);
+  say(`      -> the transfer failed, the NEAR came back, today's spend stayed at ${fmt(spentAfter)} NEAR`);
+  check(
+    "the owner calls on_transfer to fake a failed payment",
+    await attempt(() =>
+      owner.callRaw(rulesId, "on_transfer", { amount: near(1).toString(), day: 0 }, { gas: 30n * TGAS }),
+    ),
+    { outcome: "contract", why: "is private" },
+  );
+  say("");
+
+  say("7. The agent tries to get around the contract with its own key");
   check(
     `transfer 0.01 NEAR straight to ${mallory.accountId}`,
     await attempt(() => owner.batch(mallory).transfer(near(0.01)).transact(agentKey)),
@@ -206,14 +341,12 @@ try {
   );
   check(
     `call set_rules to put ${mallory.accountId} on the list`,
-    await attempt(() =>
-      owner.callRaw(
-        rulesId,
-        "set_rules",
-        { max_per_payment: near(100).toString(), daily_cap: near(100).toString(), open: true, allowed: [mallory.accountId] },
-        { signWithKey: agentKey, gas: 30n * TGAS },
-      ),
-    ),
+    await agentCalls("set_rules", {
+      max_per_payment: near(100).toString(),
+      daily_cap: near(100).toString(),
+      open: true,
+      allowed: [mallory.accountId],
+    }),
     { outcome: "protocol", why: "MethodNameMismatch" },
   );
   check(
@@ -223,13 +356,30 @@ try {
   );
   say("");
 
-  say("6. The owner locks spending");
-  const locked = await owner.callRaw(rulesId, "set_rules", {
-    max_per_payment: PER_PAYMENT.toString(),
-    daily_cap: DAILY_CAP.toString(),
-    open: false,
-    allowed: [alice.accountId],
-  });
+  say("8. scripts/agent.mjs, the program that paid on mainnet, run against this sandbox");
+  let agentPaid = 0n;
+  if (scriptsReady) {
+    await untilFinal(owner.accountId, agentKey.getPublicKey().toString());
+    const out = runScript("agent.mjs", [], {
+      KYRONA_ACCOUNT: owner.accountId,
+      KYRONA_RULES: rulesId,
+      KYRONA_PAYEE: alice.accountId,
+      KYRONA_OUTSIDE: mallory.accountId,
+      KYRONA_LIMITED_KEY: agentKey.toString(),
+    });
+    say(indent(out));
+    agentPaid = near(0.01);
+    const asked = await rules.view("requests");
+    const waitsOnly = asked.length === 1 && asked[0].to === mallory.accountId;
+    if (!waitsOnly) failures += 1;
+    say(`${waitsOnly ? "ok  " : "FAIL"}  the agent's request for ${mallory.accountId} waits; nothing moved`);
+  } else {
+    say("      skipped: run npm install at the root to include it");
+  }
+  say("");
+
+  say("9. The owner locks spending");
+  const locked = await owner.callRaw(rulesId, "set_rules", rulesArgs(false, [alice.accountId]));
   if (locked.failed) throw new Error(`Locking failed: ${JSON.stringify(locked.Failure)}`);
   check(
     `pay 0.1 NEAR to ${alice.accountId} while locked`,
@@ -239,15 +389,17 @@ try {
   say("");
 
   const view = await rules.view("rules");
-  const aliceGot = BigInt((await alice.accountView()).amount) - aliceBefore;
-  const malloryGot = BigInt((await mallory.accountView()).amount) - malloryBefore;
+  const aliceGot = (await balance(alice)) - aliceBefore;
+  const malloryGot = (await balance(mallory)) - malloryBefore;
   say("What moved");
-  say(`  ${alice.accountId} received ${fmt(aliceGot)} NEAR (expected 2.5)`);
-  say(`  ${mallory.accountId} received ${fmt(malloryGot)} NEAR (expected 0)`);
-  say(`  the contract records ${fmt(view.spent)} NEAR spent today`);
-  if (aliceGot !== near(2.5)) failures += 1;
-  if (malloryGot !== 0n) failures += 1;
-  if (BigInt(view.spent) !== near(2.5)) failures += 1;
+  const aliceExpected = near(2.5) + agentPaid;
+  const spentExpected = near(2.9) + agentPaid;
+  say(`  ${alice.accountId} received ${fmt(aliceGot)} NEAR (expected ${fmt(aliceExpected)})`);
+  say(`  ${mallory.accountId} received ${fmt(malloryGot)} NEAR (expected 0.4, the approved request)`);
+  say(`  the contract records ${fmt(view.spent)} NEAR spent today (expected ${fmt(spentExpected)})`);
+  if (aliceGot !== aliceExpected) failures += 1;
+  if (malloryGot !== near(0.4)) failures += 1;
+  if (BigInt(view.spent) !== spentExpected) failures += 1;
   say("");
 
   say(failures === 0 ? "All checks passed." : `${failures} check(s) failed.`);
@@ -257,8 +409,21 @@ try {
 } finally {
   await worker.tearDown().catch(() => {});
   if (process.env.GITHUB_ACTIONS) {
-    const body = lines.join("\n").replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-    console.log(`::notice title=Kyrona judge run::${body}`);
+    // GitHub cuts long annotations, so the log goes out in parts.
+    const parts = [];
+    let part = "";
+    for (const line of lines.join("\n").split("\n")) {
+      if (part.length + line.length > 3000) {
+        parts.push(part);
+        part = "";
+      }
+      part += `${line}\n`;
+    }
+    parts.push(part);
+    parts.forEach((text, index) => {
+      const body = text.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+      console.log(`::notice title=Kyrona judge run ${index + 1}/${parts.length}::${body}`);
+    });
   }
 }
 process.exit(failures === 0 ? 0 : 1);

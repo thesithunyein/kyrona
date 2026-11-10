@@ -1,7 +1,8 @@
 name: Judge
 
-# Runs `npm run judge` on a clean machine: the rules contract on a local NEAR sandbox,
-# attacked with the agent's limited key. No secrets are used.
+# Builds the contract from contract/src, checks the build against the code on mainnet, and runs
+# `npm run judge` on a clean machine: the first version deployed, upgraded in place, and attacked
+# with the agent's limited key on a local NEAR sandbox. No secrets are used.
 
 on:
   push:
@@ -9,17 +10,53 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   judge:
     name: Judge run on a local sandbox
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Build the contract
+        run: |
+          cargo build --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown --release
+          cp contract/target/wasm32-unknown-unknown/release/kyrona.wasm public/kyrona.wasm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check the build against the code on mainnet
+        run: node judge/compare-wasm.mjs contract/v1/kyrona-v1.wasm public/kyrona.wasm
+      - name: Shrink the contract with wasm-opt
+        # Storage on NEAR costs about 0.01 NEAR per kilobyte, so the deployed file is optimized.
+        # Only the features the mainnet build already uses are enabled.
+        run: |
+          sudo apt-get install -y --no-install-recommends binaryen > /dev/null
+          before=$(stat -c %s public/kyrona.wasm)
+          if ! wasm-opt -Oz --strip-debug --strip-producers \
+              --enable-bulk-memory --enable-sign-ext --enable-mutable-globals \
+              --enable-nontrapping-float-to-int --enable-reference-types --enable-multivalue \
+              public/kyrona.wasm -o public/kyrona.opt.wasm 2> opt.err; then
+            echo "::error title=wasm-opt::$(tr '\n' ' ' < opt.err | cut -c1-2000)"
+            exit 1
+          fi
+          mv public/kyrona.opt.wasm public/kyrona.wasm
+          echo "::notice title=wasm-opt::$(wasm-opt --version) shrank the contract from $before to $(stat -c %s public/kyrona.wasm) bytes"
+          node judge/compare-wasm.mjs contract/v1/kyrona-v1.wasm public/kyrona.wasm
+      - name: Install the app's packages, so the judge also runs scripts/upgrade.mjs and scripts/agent.mjs
+        run: npm ci --no-audit --no-fund
       - name: npm run judge
         run: npm run judge
+      - name: Commit the built contract
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          if ! git diff --quiet -- public/kyrona.wasm; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Build public/kyrona.wasm from contract/src" -- public/kyrona.wasm
+            git push
+          fi

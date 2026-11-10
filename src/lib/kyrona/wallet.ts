@@ -125,7 +125,7 @@ export async function sendOnNear(input: {
 
 const LIMITED = "kyrona-limited-key:";
 const GAS = 50_000_000_000_000n;
-const LIMITED_GAS = 20_000_000_000_000n;
+const LIMITED_GAS = 30_000_000_000_000n;
 const KEY_ALLOWANCE = 250_000_000_000_000_000_000_000n;
 
 export function limitedKeyStored(accountId: string) {
@@ -204,7 +204,7 @@ export async function addLimitedPayKey(accountId: string) {
   const outcome = await wallet.signAndSendTransaction({
     signerId: accountId,
     receiverId: accountId,
-    actions: [near.addKey(pair.getPublicKey(), near.functionCallAccessKey(rulesAccount(accountId), ["pay"], KEY_ALLOWANCE))],
+    actions: [near.addKey(pair.getPublicKey(), near.functionCallAccessKey(rulesAccount(accountId), ["pay", "request"], KEY_ALLOWANCE))],
   });
   localStorage.setItem(LIMITED + accountId, pair.toString());
   return hashOf(outcome);
@@ -227,6 +227,28 @@ export async function payWithLimitedKey(accountId: string, receiverId: string, a
   const outcome = await signLimited(accountId, rulesAccount(accountId), [
     near.functionCall("pay", { to: receiverId, amount: toUnits(amount, 24) }, LIMITED_GAS, 0n),
   ]);
+  return hashOf(outcome);
+}
+
+/** The agent asks the owner for a payment the rules do not allow. Nothing moves. */
+export async function requestWithLimitedKey(accountId: string, receiverId: string, amount: string, note: string) {
+  const near = await actions();
+  const outcome = await signLimited(accountId, rulesAccount(accountId), [
+    near.functionCall("request", { to: receiverId, amount: toUnits(amount, 24), note }, LIMITED_GAS, 0n),
+  ]);
+  return hashOf(outcome);
+}
+
+/** The owner pays or drops a waiting request. The wallet signs, because the limited key cannot. */
+export async function decideRequest(accountId: string, id: number, decision: "approve" | "reject") {
+  const selector = await getSelector();
+  const wallet = await selector.wallet();
+  const near = await actions();
+  const outcome = await wallet.signAndSendTransaction({
+    signerId: accountId,
+    receiverId: rulesAccount(accountId),
+    actions: [near.functionCall(decision, { id }, GAS, 0n)],
+  });
   return hashOf(outcome);
 }
 
@@ -310,7 +332,7 @@ export async function fundRules(accountId: string) {
 export async function runAgent(accountId: string) {
   const vendor = vendorAccount(accountId);
   const near = await actions();
-  const gas = 15_000_000_000_000n;
+  const gas = LIMITED_GAS;
   const contractId = rulesAccount(accountId);
   const refused = await signLimited(accountId, contractId, [near.functionCall("pay", { to: "outside.near", amount: "1" }, gas, 0n)]).then(
     () => "The unknown account was paid.",

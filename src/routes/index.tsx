@@ -12,10 +12,10 @@ import {
   type Proposal,
 } from "@/lib/kyrona/engine";
 import { readBalances, isNearAccount } from "@/lib/kyrona/chain";
-import { contractLive, nearLabel, readChainRules } from "@/lib/kyrona/policy";
+import { contractLive, nearLabel, readChainRules, readRequests, type ChainRequest } from "@/lib/kyrona/policy";
 import { useDesk } from "@/lib/kyrona/store";
 import { openAccount } from "@/lib/kyrona/session";
-import { addLimitedPayKey, connectWallet, createVendor, disconnectWallet, fundRules, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, putRulesWithKey, restoreWallet, runAgent, saveDeskOnAccount, sendOnNear, showKeyLimits, vendorAccount } from "@/lib/kyrona/wallet";
+import { addLimitedPayKey, connectWallet, createVendor, decideRequest, disconnectWallet, fundRules, limitedKeyStored, payThroughWallet, payWithLimitedKey, putRulesOnChain, putRulesWithKey, requestWithLimitedKey, restoreWallet, runAgent, saveDeskOnAccount, sendOnNear, showKeyLimits, vendorAccount } from "@/lib/kyrona/wallet";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -816,11 +816,11 @@ function OnChain() {
       <h2 className="display mt-3 text-3xl">{accountId ? `rules.${accountId}` : "A separate rules account."}</h2>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         {live === true
-          ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay, and nothing else."
+          ? "A NEAR payment has to pass the list, the lock, and the caps on rules." + (accountId ? accountId : "your account") + ". The limited key can call pay and request, and nothing else. A request waits for you."
           : live === false
             ? "The wallet link cannot carry a contract this size. Paste the Meteor key below. It is used once in this browser and is not saved. This creates rules." +
               (accountId ?? "yourname.near") +
-              ". About 0.79 NEAR moves there. 0.74 stays locked for the code. 0.05 can be paid out."
+              ". About 1.31 NEAR moves there. About 1.26 stays locked for the code. 0.05 can be paid out."
             : "Checking the account."}
       </p>
       {accountId && live && <ChainSummary accountId={accountId} seen={seen} />}
@@ -902,10 +902,86 @@ function OnChain() {
           <button type="button" disabled={busy || !held} className="btn btn-ink" onClick={() => run(() => runAgent(accountId), "")}>
             {busy ? "The agent is paying" : "3. Run the agent"}
           </button>
+          <button
+            type="button"
+            disabled={busy || !held}
+            className="btn btn-quiet"
+            onClick={() =>
+              run(
+                () => requestWithLimitedKey(accountId, "outside.near", "0.01", "A new vendor, not on the list"),
+                "The agent asked for 0.01 NEAR to outside.near. Nothing moved. It waits for you below.",
+              )
+            }
+          >
+            {busy ? "The agent is asking" : "4. The agent asks to pay someone new"}
+          </button>
         </div>
       )}
+      {live === true && accountId && <WaitingRequests accountId={accountId} seen={seen} onDecided={() => setSeen((value) => value + 1)} />}
       {note && <p className="mt-3 text-sm text-muted">{note}</p>}
     </section>
+  );
+}
+
+function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; seen: number; onDecided: () => void }) {
+  const [requests, setRequests] = useState<ChainRequest[] | null | undefined>(undefined);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    let current = true;
+    readRequests(accountId).then((list) => current && setRequests(list));
+    return () => {
+      current = false;
+    };
+  }, [accountId, seen]);
+
+  async function decide(id: number, decision: "approve" | "reject") {
+    setBusy(id);
+    setNote("");
+    try {
+      await decideRequest(accountId, id, decision);
+      setNote(decision === "approve" ? `Request ${id} was paid.` : `Request ${id} was dropped. Nothing moved.`);
+      onDecided();
+    } catch (error) {
+      setNote(plainError(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (requests === undefined) return null;
+  if (requests === null) {
+    return (
+      <p className="mt-5 text-sm text-muted">
+        This rules account runs the first version, which has no requests. The owner upgrades it with scripts/upgrade.mjs; the list, the caps and the lock stay as they are.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-5 grid gap-2">
+      <p className="text-sm font-medium">Waiting for you</p>
+      {requests.length === 0 && <p className="text-sm text-muted">Nothing is waiting. When the agent asks for a payment outside the rules, it shows here.</p>}
+      {requests.map((request) => (
+        <div key={request.id} className="card flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="min-w-0 text-sm">
+            <p className="font-medium">
+              {nearLabel(request.amount)} NEAR to <span className="break-all">{request.to}</span>
+            </p>
+            {request.note && <p className="text-muted">{request.note}</p>}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy !== null} className="btn btn-ink" onClick={() => decide(request.id, "approve")}>
+              {busy === request.id ? "Waiting for the wallet" : "Approve"}
+            </button>
+            <button type="button" disabled={busy !== null} className="btn btn-quiet" onClick={() => decide(request.id, "reject")}>
+              Reject
+            </button>
+          </div>
+        </div>
+      ))}
+      {note && <p className="text-sm text-muted">{note}</p>}
+    </div>
   );
 }
 

@@ -27,7 +27,7 @@
   <a href="LICENSE">License</a>
 </p>
 
-Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules live on `rules.sithunyein.near`. A payment has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR.
+Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap per payment and a cap per day, and lock spending when you want everything to stop. For NEAR, those rules live on `rules.sithunyein.near`. A payment has to call `pay`. The contract checks the list, the lock, and the caps, and only then sends the NEAR. A payment outside the rules can be asked for with `request` instead: it waits on the rules account until you approve or reject it, and nothing moves before that.
 
 The payment to open first is [0.01 NEAR sent by the agent script to `kyawminthat.near`](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). That account was not created by this project. The script holds a key that can only call `pay`.
 
@@ -39,7 +39,7 @@ Sending NEAR is easy. Sending the wrong amount, to an account you did not mean, 
 
 Kyrona sits in front of that approval. Once the rules are on their own account, `pay` still checks them even if the page is skipped.
 
-NEAR lets a function-call key be limited to one method on one contract. The payment program holds a key scoped to `pay` on the rules account, so it cannot transfer NEAR, add a key, or deploy code. That limit is enforced by the chain, not by the page.
+NEAR lets a function-call key be limited to named methods on one contract. The payment program holds a key scoped to `pay` and `request` on the rules account, so it cannot transfer NEAR, add a key, deploy code, change the rules, or approve its own requests. That limit is enforced by the chain, not by the page.
 
 ## How a payment moves
 
@@ -60,6 +60,10 @@ sequenceDiagram
     Rules->>Rules: List, lock, caps
     Rules->>Chain: Transfer
     Chain-->>Desk: Transaction hash
+  else NEAR, outside the rules
+    Desk->>Rules: request, signed by the limited key
+    Note over Rules: Waits. Nothing moves
+    You->>Rules: approve or reject, signed by your wallet
   else USDC, or no rules account yet
     Desk->>Chain: Wallet signs the transfer
     Chain-->>Desk: Transaction hash
@@ -77,7 +81,7 @@ The checks, in order:
 | Today | Today’s total would still be within the daily cap |
 | Balance | The chain balance covers it |
 
-On the rules account, `pay` repeats the lock, the list, and both caps. USDC does not go through `pay`.
+On the rules account, `pay` repeats the lock, the list, and both caps. If a transfer fails on the way, the NEAR comes back and is taken off today's total. USDC does not go through `pay`.
 
 ## Check it yourself, no wallet
 
@@ -85,22 +89,30 @@ On the rules account, `pay` repeats the lock, the list, and both caps. USDC does
 npm run judge
 ```
 
-This starts a local NEAR node (nearcore 2.14.0, downloaded on the first run), deploys `public/kyrona.wasm` the same way the desk does, and gives an agent a key that may only call `pay`. Then the agent tries to break the rules. No wallet, no keys and no funds are needed. It needs Node 20 or newer on Linux x86_64 or Apple Silicon macOS; on Windows, run it in WSL.
+This starts a local NEAR node (nearcore 2.14.0, downloaded on the first run) and deploys `contract/v1/kyrona-v1.wasm`, the exact code on `rules.sithunyein.near`, the same way the desk does. It upgrades that account in place to `public/kyrona.wasm` and gives an agent a key that may only call `pay` and `request`. Then the agent tries to break the rules. No wallet, no keys and no funds are needed. It needs Node 20 or newer on Linux x86_64 or Apple Silicon macOS; on Windows, run it in WSL. After `npm install` at the root, the run also uses `scripts/upgrade.mjs` and `scripts/agent.mjs`, the programs that run on mainnet, against the local node.
 
 What you should see (the run exits 1 if any line differs):
 
-| The agent tries | Result |
+| Step | Result |
 |---|---|
-| pay 1 NEAR to an account on the list | paid |
-| pay 0.5 NEAR to a stranger, as a prompt-injected invoice asked | refused by the contract: `Not on the list` |
-| pay 2.5 NEAR, over the 2 NEAR per-payment cap | refused by the contract: `Over the per-payment cap` |
-| pay 1.5 NEAR, then 1 NEAR more the same day | the first is paid; the second is refused: `Over the daily cap` |
-| transfer NEAR directly with its own key | refused by NEAR: `RequiresFullAccess` |
-| call `set_rules` to add the stranger to the list | refused by NEAR: `MethodNameMismatch` |
-| add a full-access key for itself | refused by NEAR: `RequiresFullAccess` |
-| pay after the owner locks spending | refused by the contract: `Spending is locked` |
+| upgrade the first version in place | the owner, list, caps, lock and today's spend are kept |
+| anyone calls `migrate` again | refused by the contract: `Only the rules account can migrate` |
+| the agent pays 1 NEAR to an account on the list | paid |
+| the agent pays 0.5 NEAR to a stranger, as a prompt-injected invoice asked | refused by the contract: `Not on the list` |
+| the agent pays 2.5 NEAR, over the 2 NEAR per-payment cap | refused by the contract: `Over the per-payment cap` |
+| the agent pays 1.5 NEAR, then 1 NEAR more the same day | the first is paid; the second is refused: `Over the daily cap` |
+| the agent requests 0.4 NEAR and 5 NEAR for the stranger | both wait; the stranger has received nothing |
+| the agent approves its own request | refused by NEAR: `MethodNameMismatch` |
+| the owner approves the 0.4, rejects the 5, approves the 0.4 again | paid; dropped; refused: `No such request` |
+| the agent pays an account on the list that does not exist | the transfer fails, and today's total is unchanged |
+| the owner calls `on_transfer` to fake a failed payment | refused by the contract: `Method on_transfer is private` |
+| the agent transfers NEAR directly with its own key | refused by NEAR: `RequiresFullAccess` |
+| the agent calls `set_rules` to add the stranger to the list | refused by NEAR: `MethodNameMismatch` |
+| the agent adds a full-access key for itself | refused by NEAR: `RequiresFullAccess` |
+| `scripts/agent.mjs` runs against the local node | refused for the stranger, refused to transfer, pays 0.01 NEAR, and its request waits |
+| the agent pays after the owner locks spending | refused by the contract: `Spending is locked` |
 
-At the end the run checks the balances: the listed account received 2.5 NEAR, the stranger received nothing, and the contract records 2.5 NEAR spent. The [Judge run](https://github.com/thesithunyein/kyrona/actions/workflows/judge.yml) workflow runs the same command on a clean machine on every push. The script is [`judge/run.mjs`](judge/run.mjs).
+At the end the run checks the balances: the listed account received 2.51 NEAR, the stranger received only the approved 0.4, and the contract records 2.91 NEAR spent (2.5 and 2.9 without the root packages). The [Judge run](https://github.com/thesithunyein/kyrona/actions/workflows/judge.yml) workflow builds the contract from `contract/src`, checks that it imports no host function newer than the mainnet build, and runs the same command on a clean machine on every push. The script is [`judge/run.mjs`](judge/run.mjs).
 
 ## Proof
 
@@ -118,7 +130,9 @@ That program is not the website. Before paying, it was refused for `outside.near
 | `pay` 0.01 NEAR to `sithunyein.near` | [EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd](https://nearblocks.io/txns/EhiB269WNE8W823fJYvwRvB1ei9yHPXs6DrrbMYia9jd). An earlier check. The receiver is the owner. |
 | `pay` 0.01 NEAR to `vendor.sithunyein.near` | [2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk](https://nearblocks.io/txns/2aMMe5xPv8DWayTS2wfWxfMD4fTPFWhfMGmYYVn61Lyk). An earlier check. This project created that account. |
 
-The demo shows the allowlist refusal and the payment. The lock and the daily cap are not in the video; both are part of the same `pay` call and are covered by tests in [`contract/src/lib.rs`](https://github.com/thesithunyein/kyrona/blob/main/contract/src/lib.rs).
+The demo shows the allowlist refusal and the payment. The lock and the daily cap are not in the video; both are part of the same `pay` call and are covered by tests in [`contract/src/lib.rs`](https://github.com/thesithunyein/kyrona/blob/main/contract/src/lib.rs) and by `npm run judge`.
+
+`rules.sithunyein.near` still runs the first version, which has no requests. The second version in `contract/src` keeps every rule above and adds `request`, `approve` and `reject`; `scripts/upgrade.mjs` moves an account to it in place, and the judge rehearses that upgrade on every push.
 
 ## Use it
 
@@ -137,10 +151,11 @@ To use the desk:
 4. On Pay, choose the person, NEAR or USDC, and the amount. Choose **Check against my rules**.
 5. **Do not send** means a check failed. Nothing is signed. **Save this stop** writes the refusal in the ledger.
 6. **Safe to send** means every check passed. **Send on NEAR** opens the wallet, unless the rules are already on the account and this browser holds the limited key. Then the limited key calls `pay` and the wallet does not have to sign that payment.
-7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 0.79 NEAR moves. About 0.74 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
+7. On Rules, **Put the rules on chain** creates `rules.<your account>` and stores the list, the caps, and the lock there. Meteor will not deploy contract code, so that one signature can be made in the page. The key is not saved. About 1.31 NEAR moves. About 1.26 stays locked for the code. The rest can be paid out. **Add a limited key** creates a key that can call `pay` and `request` on that account and nothing else. **Try to break it** asks that key to pay an unknown account, and to transfer NEAR directly. Both must fail. **Update the rules** writes a new list or new caps. That one does open the wallet.
 8. **1. Create the other account** makes `vendor.<your account>` and puts it on the list. The new account can receive. It has no key, because Meteor blocks adding one. On this deployment that account is `vendor.sithunyein.near`. It is a test receiver, not the proof.
 9. **2. Add 0.2 NEAR** moves spare NEAR onto the rules account so `pay` can run more than once.
 10. **3. Run the agent** on the page uses the limited key in this browser. It is not the program in `scripts/agent.mjs`. The page button pays the vendor account. The payment that matters was signed by the script: [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2).
+11. **4. The agent asks to pay someone new** uses the limited key to request 0.01 NEAR for `outside.near`. Nothing moves. The request appears under **Waiting for you**, where **Approve** pays it and **Reject** drops it; your wallet signs both. A rules account on the first version says so here instead, until it is upgraded.
 
 **Save to my account** on Rules writes the limits and the ledger to `social.near`, signed by you, so the same wallet can load them in another browser. Until you do that, they stay on this phone or computer.
 
@@ -151,6 +166,8 @@ To use the desk:
 - USDC is checked in the page and sent with `ft_transfer`. It does not pass through `pay`.
 - There is no private computation. `scripts/agent.mjs` is a separate program. It reads a limited key from the environment and refuses a full-access key. Its payment is [2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2](https://nearblocks.io/txns/2s7qQnyTwYmTiJGka5XqKxk2WsU9pcCSLJvKy6qSKdu2). The key is not in this repository.
 - The rules account can pay out only the NEAR that is not locked for code. A large cap does not create a large balance.
+- The contract cannot tell your full-access key from the agent's key: both sign as your account. What stops the agent from calling `approve`, `set_rules` or `migrate` is the method list on its key, which NEAR enforces. Do not give the agent a key that names more than `pay` and `request`.
+- An approved request skips the list and the caps, but not the lock, and it still counts toward today's total. At most 20 requests wait at once, so a compromised agent can fill the queue but not the contract's storage.
 
 ## The other project
 
@@ -179,12 +196,17 @@ kyrona
 │   ├── routeTree.gen.ts
 │   └── styles.css
 ├── scripts
-│   └── agent.mjs                  A separate program. Limited key only. The key is not stored here
+│   ├── agent.mjs                  A separate program. Limited key only. The key is not stored here
+│   └── upgrade.mjs                Moves a first-version rules account to this build, in place
+├── judge
+│   ├── run.mjs                    npm run judge: the contract on a local node, attacked
+│   └── compare-wasm.mjs           No host function newer than the mainnet build
 ├── contract
 │   ├── Cargo.toml                 near-sdk 5.17, so the wasm links on current mainnet
-│   └── src/lib.rs                 list, caps, lock, pay
+│   ├── src/lib.rs                 list, caps, lock, pay, request, approve, reject, migrate
+│   └── v1/kyrona-v1.wasm          The first version, the exact code on rules.sithunyein.near
 ├── public
-│   ├── kyrona.wasm                The contract the desk deploys, 73,784 bytes
+│   ├── kyrona.wasm                The contract the desk deploys, 126,027 bytes, built by CI
 │   ├── logo.png
 │   ├── favicon.png
 │   ├── favicon.svg
@@ -205,17 +227,28 @@ A newer SDK imported host functions this network does not provide. The contract 
 
 ## Built with
 
-Written for this hackathon, from 1 November 2026. The app shell (TanStack Start, React, Vite, the auth and preview wiring under `src/lib/auth`, `src/lib/app-data`, `server/` and most of `scripts/`) came from a Grok App Builder export and is in the first commit, `8ba0acc`. Everything Kyrona does is new: `contract/`, `src/lib/kyrona/`, `src/routes/index.tsx` and `scripts/agent.mjs`. Parts of the code were written with AI assistance. Wallets are Meteor and MyNearWallet through `@near-wallet-selector`. The contract is Rust and `near-sdk` 5.17, pinned so it links on current mainnet. `scripts/agent.mjs` uses `@near-js`.
+Written for this hackathon, from 1 November 2026. The app shell (TanStack Start, React, Vite, the auth and preview wiring under `src/lib/auth`, `src/lib/app-data`, `server/` and most of `scripts/`) came from a Grok App Builder export and is in the first commit, `8ba0acc`. Everything Kyrona does is new: `contract/`, `src/lib/kyrona/`, `src/routes/index.tsx`, `judge/`, `scripts/agent.mjs` and `scripts/upgrade.mjs`. `public/kyrona.wasm` is built from `contract/src` by the Judge workflow and shrunk with `wasm-opt`. Parts of the code were written with AI assistance. Wallets are Meteor and MyNearWallet through `@near-wallet-selector`. The contract is Rust and `near-sdk` 5.17, pinned so it links on current mainnet. `scripts/agent.mjs` uses `@near-js`.
 
 ## Run the agent
 
-`scripts/agent.mjs` is not the website. It signs with a limited key supplied at runtime. If that key can do more than call `pay`, the script stops.
+`scripts/agent.mjs` is not the website. It signs with a limited key supplied at runtime. If that key can do more than call `pay` and `request`, the script stops.
 
 ```sh
 KYRONA_LIMITED_KEY='ed25519:...' npm run agent
 ```
 
-Do not commit the key. The script then refuses `outside.near`, refuses a direct transfer, and sends 0.01 NEAR to `kyawminthat.near`.
+Do not commit the key. The script then refuses `outside.near`, refuses a direct transfer, and sends 0.01 NEAR to `kyawminthat.near`. If the key may also call `request`, it then asks for 0.01 NEAR to `outside.near`, which waits on the desk. `KYRONA_ACCOUNT`, `KYRONA_RULES`, `KYRONA_PAYEE`, `KYRONA_OUTSIDE` and `KYRONA_RPC` point it at another account.
+
+## Upgrade a rules account
+
+A rules account made before the second version runs `contract/v1/kyrona-v1.wasm`. The owner moves it to `public/kyrona.wasm` in one transaction that deploys the code and calls `migrate`; the list, the caps, the lock and today's spend stay.
+
+```sh
+KYRONA_OWNER_KEY='ed25519:...' npm run upgrade            # dry run: shows the plan, sends nothing
+KYRONA_OWNER_KEY='ed25519:...' npm run upgrade -- --send  # sends it
+```
+
+The key is the owner's full-access key, the one the desk also put on the rules account. The script refuses unless the account runs exactly the first version, and adds NEAR first if storage for the larger code needs it. Keys added before the upgrade can call `pay` but not `request`; add a new limited key on the desk afterwards.
 
 ## Run it locally
 

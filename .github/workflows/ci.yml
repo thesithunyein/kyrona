@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -18,3 +17,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test the contract
         run: cargo test --manifest-path contract/Cargo.toml
+
+  typecheck:
+    name: Type check the desk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: tsc --noEmit
+        run: |
+          if ! npx tsc --noEmit > tsc.out 2>&1; then
+            echo "::error title=Type check::$(grep -E 'error TS' tsc.out | head -40 | tr '\n' '|' | cut -c1-6000)"
+            exit 1
+          fi

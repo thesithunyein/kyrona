@@ -4,11 +4,14 @@ import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators } from "@near-js/transactions";
 
-const ACCOUNT = "sithunyein.near";
-const RULES = "rules.sithunyein.near";
-const PAYEE = "kyawminthat.near";
-const RPC = "https://free.rpc.fastnear.com";
-const GAS = 15_000_000_000_000n;
+// Set these to run the agent against your own rules account.
+const ACCOUNT = process.env.KYRONA_ACCOUNT?.trim() || "sithunyein.near";
+const RULES = process.env.KYRONA_RULES?.trim() || `rules.${ACCOUNT}`;
+const PAYEE = process.env.KYRONA_PAYEE?.trim() || "kyawminthat.near";
+const OUTSIDE = process.env.KYRONA_OUTSIDE?.trim() || "outside.near";
+const RPC = process.env.KYRONA_RPC?.trim() || "https://free.rpc.fastnear.com";
+const GAS = 30_000_000_000_000n;
+const ALLOWED_METHODS = ["pay", "request"];
 
 const secret = loadSecret();
 const signer = KeyPairSigner.fromSecretKey(secret);
@@ -23,20 +26,26 @@ if (permission === "FullAccess" || permission?.FullAccess !== undefined && !perm
   process.exit(1);
 }
 const call = permission.FunctionCall;
-if (!call || call.receiver_id !== RULES || !call.method_names?.length || call.method_names.some((name) => name !== "pay")) {
-  console.error("This key is not limited to pay on the rules account. The agent will not use it.");
+if (
+  !call ||
+  call.receiver_id !== RULES ||
+  !call.method_names?.length ||
+  call.method_names.some((name) => !ALLOWED_METHODS.includes(name))
+) {
+  console.error("This key is not limited to pay and request on the rules account. The agent will not use it.");
   process.exit(1);
 }
+const canRequest = call.method_names.includes("request");
 
 console.log(`Key ${publicKey}`);
-console.log("This key can call pay, and nothing else.");
+console.log(`This key can call ${call.method_names.join(" and ")} on ${RULES}, and nothing else.`);
 
-const refused = await attempt(RULES, [actionCreators.functionCall("pay", { to: "outside.near", amount: "1" }, GAS, 0n)]);
+const refused = await attempt(RULES, [actionCreators.functionCall("pay", { to: OUTSIDE, amount: "1" }, GAS, 0n)]);
 if (!refused.toLowerCase().includes("not on the list")) {
   console.error(refused || "The unknown account was not refused.");
   process.exit(1);
 }
-console.log("Refused. outside.near is not on the list.");
+console.log(`Refused. ${OUTSIDE} is not on the list.`);
 
 const transfer = await attempt(ACCOUNT, [actionCreators.transfer(1n)]);
 if (!transfer) {
@@ -53,6 +62,23 @@ const paid = await account.signAndSendTransaction({
 const hash = paid.transaction.hash;
 console.log(`Paid 0.01 NEAR to ${PAYEE}`);
 console.log(`https://nearblocks.io/txns/${hash}`);
+
+if (canRequest) {
+  const asked = await account.signAndSendTransaction({
+    receiverId: RULES,
+    actions: [
+      actionCreators.functionCall(
+        "request",
+        { to: OUTSIDE, amount: "10000000000000000000000", note: "A new vendor, not on the list" },
+        GAS,
+        0n,
+      ),
+    ],
+    throwOnFailure: true,
+  });
+  console.log(`Asked the owner for 0.01 NEAR to ${OUTSIDE}. Nothing moved; it waits on the desk.`);
+  console.log(`https://nearblocks.io/txns/${asked.transaction.hash}`);
+}
 
 function loadSecret() {
   const fromEnv = process.env.KYRONA_LIMITED_KEY?.trim();

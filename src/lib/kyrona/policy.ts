@@ -11,6 +11,16 @@ export type ChainRules = {
   open: boolean;
   spent: string;
   allowed: string[];
+  /** Requests waiting for the owner. Missing on the first version of the contract. */
+  waiting?: number;
+};
+
+export type ChainRequest = {
+  id: number;
+  to: string;
+  amount: string;
+  note: string;
+  at_ms: number;
 };
 
 export function ruleArgs(rules: Rules) {
@@ -65,6 +75,15 @@ export async function contractLive(accountId: string) {
 export async function readChainRules(accountId: string) {
   try {
     return await view<ChainRules>(rulesAccount(accountId), "rules", {});
+  } catch {
+    return null;
+  }
+}
+
+/** Waiting requests, or null when the rules account runs the first version, which has none. */
+export async function readRequests(accountId: string) {
+  try {
+    return await view<ChainRequest[]>(rulesAccount(accountId), "requests", {});
   } catch {
     return null;
   }
