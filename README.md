@@ -33,7 +33,7 @@ Kyrona is a spending desk for a NEAR account. You name who you pay, set a cap pe
 
 The point is that the AI does not have to behave. On 10 November 2026 an AI agent on NEAR AI Cloud read an invoice with a hidden instruction and obeyed it: it tried to [pay 5 NEAR to `outside.near`](https://nearblocks.io/txns/Dz7GpQ9bBKzuuHXPDZ6H4F15qfAqBu9VExzANT2wzTCK), and the contract refused. It then [filed a request](https://nearblocks.io/txns/HmiwGp5EBTWAHSEcJepCq219pwuYFctzjbZQjpCM4fN8) with a note claiming the owner had pre-approved it, and the owner [rejected it on the desk](https://nearblocks.io/txns/8wCaxdyjZudv11PHtPnPty93FwTxvnWSiLewLHf8c3rc). Nothing reached `outside.near`. The whole run is in [An AI agent, told to pay someone else](#an-ai-agent-told-to-pay-someone-else), and every check can be repeated without a wallet in [Check it yourself](#check-it-yourself-no-wallet). The [demo video](https://x.com/thesithunyein/status/2120230253859865019) shows the same run in 90 seconds.
 
-![The desk before a wallet is connected](docs/desk.png)
+![The desk, connected to sithunyein.near: balances read from mainnet, today's spend against the caps, and spending open](docs/desk.png)
 
 ## The problem
 
@@ -338,7 +338,7 @@ kyrona
 │   ├── favicon.svg
 │   └── og.jpg
 ├── docs
-│   └── desk.png                   The desk, before a wallet is connected
+│   └── desk.png                   The desk, connected to sithunyein.near
 ├── .github/workflows
 │   ├── ci.yml                     Contract tests, type check, receiver check, a reviewer's first commands
 │   └── judge.yml                  Builds the contract, checks it against mainnet, runs npm run judge
