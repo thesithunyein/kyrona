@@ -20,6 +20,7 @@
     "agent": "node scripts/agent.mjs",
     "llm-agent": "node scripts/llm-agent.mjs",
     "agent-key": "node scripts/agent-key.mjs",
+    "check-receiver": "node scripts/check-receiver.mjs",
     "upgrade": "node scripts/upgrade.mjs",
     "judge": "npm --prefix judge install --no-audit --no-fund && npm --prefix judge run judge",
     "lint": "eslint .",

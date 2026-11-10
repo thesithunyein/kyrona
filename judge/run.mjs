@@ -8,7 +8,7 @@
 // checked: the run exits 1 if any outcome differs from what is printed as expected.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -171,7 +171,7 @@ try {
   // against this sandbox; otherwise it does the same steps itself.
   const scriptsReady = existsSync(new URL("../node_modules/@near-js/accounts/package.json", import.meta.url));
   const rpcUrl = worker.provider.connection.url;
-  const runScript = (name, args, env) => {
+  const runScript = (name, args, env, okCodes = [0]) => {
     try {
       return execFileSync(process.execPath, [fileURLToPath(new URL(`../scripts/${name}`, import.meta.url)), ...args], {
         env: { ...process.env, KYRONA_RPC: rpcUrl, ...env },
@@ -179,8 +179,20 @@ try {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
+      if (okCodes.includes(error.status)) return error.stdout ?? "";
       throw new Error(`scripts/${name} failed:\n${error.stdout ?? ""}${error.stderr ?? ""}`);
     }
+  };
+  // check-receiver.mjs reads final blocks; wait for a just-deployed contract to be final.
+  const untilFinalCode = async (accountId, codeHash) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const seen = await worker.provider
+        .query({ request_type: "view_account", account_id: accountId, finality: "final" })
+        .then((a) => a.code_hash, () => null);
+      if (seen === codeHash) return;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`The code on ${accountId} did not become final.`);
   };
   // The scripts build transactions from final blocks, which trail a freshly started sandbox.
   // Wait until a key just added is final before handing it to them.
@@ -410,7 +422,65 @@ try {
   }
   say("");
 
-  say("10. The owner locks spending");
+  if (scriptsReady) {
+    say("10. The receiver check, before the agent signs anything");
+    const scratch = mkdtempSync(join(tmpdir(), "kyrona-check-"));
+    const pinsFile = join(scratch, "pins.json");
+    const blocklistFile = join(scratch, "blocklist.json");
+    writeFileSync(blocklistFile, JSON.stringify([{ account: mallory.accountId, reason: "test entry: drained a vault in this run", evidence: "judge/run.mjs" }]));
+    const checkEnv = { KYRONA_PINS_FILE: pinsFile, KYRONA_BLOCKLIST: join(scratch, "none.json") };
+    const verdictOf = (account, extra = {}, args = []) =>
+      runScript("check-receiver.mjs", [account, ...args], { ...checkEnv, ...extra }, [0, 2]).trim();
+    const expectVerdict = (label, out, word, reason) => {
+      const ok = out.includes(` ${word}`) && (!reason || out.includes(reason));
+      if (!ok) failures += 1;
+      say(`${ok ? "ok  " : "FAIL"}  ${label}\n      -> ${out.split("\n")[0]}`);
+    };
+    expectVerdict(`${alice.accountId}, an ordinary account`, verdictOf(alice.accountId), "ALLOW");
+    expectVerdict(`${ghost}, which does not exist`, verdictOf(ghost), "BLOCK", "does not exist");
+
+    const shop = await root.createSubAccount("shop", { initialBalance: near(3) });
+    await shop.deploy(readFileSync(V1_WASM));
+    await untilFinalCode(shop.accountId, "GxfinPGWZYkt9ZpHwVsoBKAkcTtNwCKQFrsEVWKdAMyX");
+    expectVerdict(`${shop.accountId}, a contract never paid before`, verdictOf(shop.accountId), "WARN", "contract not paid before");
+    verdictOf(shop.accountId, {}, ["--pin"]);
+    expectVerdict(`${shop.accountId} after the owner pins its code`, verdictOf(shop.accountId), "ALLOW");
+    await shop.deploy(readFileSync(V2_WASM));
+    await untilFinalCode(shop.accountId, "9S1DZHopohawkLoLnYGDqv1MAf5HjbJD1gSehkMQSRDV");
+    expectVerdict(`${shop.accountId} after its code is swapped`, verdictOf(shop.accountId), "BLOCK", "code changed");
+    expectVerdict(
+      `${mallory.accountId} on a blocklist, with evidence`,
+      verdictOf(mallory.accountId, { KYRONA_BLOCKLIST: blocklistFile }),
+      "BLOCK",
+      "shared blocklist",
+    );
+
+    say("      the hijacked agent again, with the stranger on the blocklist");
+    const requestsBefore = (await rules.view("requests")).length;
+    const malloryBeforeBlock = await balance(mallory);
+    const blockedRun = runScript("llm-agent.mjs", [], {
+      KYRONA_LLM: "scripted",
+      KYRONA_ACCOUNT: owner.accountId,
+      KYRONA_RULES: rulesId,
+      KYRONA_PAYEE: alice.accountId,
+      KYRONA_OUTSIDE: mallory.accountId,
+      KYRONA_LIMITED_KEY: agentKey.toString(),
+      KYRONA_PINS_FILE: pinsFile,
+      KYRONA_BLOCKLIST: blocklistFile,
+    });
+    say(indent(blockedRun));
+    agentPaid += near(0.01);
+    const nothingSigned =
+      (await balance(mallory)) === malloryBeforeBlock &&
+      (await rules.view("requests")).length === requestsBefore &&
+      (blockedRun.match(/blocked it before signing/g) ?? []).length === 2;
+    if (!nothingSigned) failures += 1;
+    say(`${nothingSigned ? "ok  " : "FAIL"}  the payment and the request to ${mallory.accountId} were blocked before signing; no request was filed`);
+    rmSync(scratch, { recursive: true, force: true });
+    say("");
+  }
+
+  say("11. The owner locks spending");
   const locked = await owner.callRaw(rulesId, "set_rules", rulesArgs(false, [alice.accountId]));
   if (locked.failed) throw new Error(`Locking failed: ${JSON.stringify(locked.Failure)}`);
   check(

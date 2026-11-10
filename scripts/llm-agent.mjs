@@ -21,6 +21,7 @@ import { Account } from "@near-js/accounts";
 import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators } from "@near-js/transactions";
+import { EMPTY_CODE, check, describe, pin, readJson } from "./risk/check.mjs";
 
 const ACCOUNT = process.env.KYRONA_ACCOUNT?.trim() || "sithunyein.near";
 const RULES = process.env.KYRONA_RULES?.trim() || `rules.${ACCOUNT}`;
@@ -34,6 +35,10 @@ const GAS = 30_000_000_000_000n;
 const MAX_TOOL_CALLS = 6;
 const MODEL_TIMEOUT_MS = 180_000;
 const EXPLORER = RPC.includes("127.0.0.1") || RPC.includes("localhost") ? null : "https://nearblocks.io/txns/";
+const INDEXER_SETTING = process.env.KYRONA_INDEXER?.trim();
+const INDEXER = INDEXER_SETTING === "off" ? null : INDEXER_SETTING || (EXPLORER ? "https://api.nearblocks.io" : null);
+const BLOCKLIST = process.env.KYRONA_BLOCKLIST?.trim() || new URL("./risk/blocklist.json", import.meta.url);
+const PINS = process.env.KYRONA_PINS_FILE?.trim() || new URL("../.kyrona-pins.json", import.meta.url);
 
 class Stop extends Error {}
 
@@ -109,27 +114,65 @@ const tools = [
 
 const record = [];
 
+let pins = readJson(PINS, {});
+const blocklist = readJson(BLOCKLIST, []);
+
 async function runTool(name, args) {
   const line = `${name} ${args.amount_near} NEAR to ${args.to}${args.note ? ` ("${args.note}")` : ""}`;
   console.log(`model asks   ${line}`);
+  if (name !== "pay" && name !== "request") {
+    console.log(`NEAR did     nothing: there is no tool ${name}`);
+    return `There is no tool ${name}.`;
+  }
+
+  // The receiver check runs before anything is signed.
+  const to = String(args.to ?? "").trim().toLowerCase();
+  const checked = await check(to, {
+    viewAccount: (id) => provider.viewAccount(id, { finality: "final" }),
+    indexer: INDEXER,
+    pins,
+    blocklist,
+  });
+  console.log(`check        ${describe(checked)}`);
+  const warnings = checked.reasons.filter((r) => r.level !== "info").map((r) => r.text).join("; ");
+  if (checked.verdict === "block") {
+    record.push({ line, outcome: "blocked", why: warnings });
+    console.log("NEAR did     nothing: the receiver check blocked it before signing");
+    return `BLOCKED by the receiver check before anything was signed: ${warnings}. Nothing moved.`;
+  }
+  let method = name;
+  let note = String(args.note ?? "");
+  if (checked.verdict === "warn") {
+    if (name === "pay") {
+      method = "request";
+      note = `Receiver check: ${warnings}.`;
+      console.log("agent        the payment becomes a request: a person decides");
+    } else {
+      note = `${note} [Receiver check: ${warnings}]`;
+    }
+  }
+
   try {
     const params =
-      name === "pay"
-        ? { to: args.to, amount: yocto(args.amount_near) }
-        : { to: args.to, amount: yocto(args.amount_near), note: String(args.note ?? "").slice(0, 140) };
-    if (name !== "pay" && name !== "request") throw new Error(`no such tool: ${name}`);
+      method === "pay"
+        ? { to, amount: yocto(args.amount_near) }
+        : { to, amount: yocto(args.amount_near), note: note.slice(0, 140) };
     const outcome = await account.signAndSendTransaction({
       receiverId: RULES,
-      actions: [actionCreators.functionCall(name, params, GAS, 0n)],
+      actions: [actionCreators.functionCall(method, params, GAS, 0n)],
       throwOnFailure: true,
     });
     const hash = outcome.transaction.hash;
     const result =
-      name === "pay"
+      method === "pay"
         ? `PAID on NEAR. Transaction ${hash}.`
         : `WAITING for the owner. Nothing moved. Request id ${Buffer.from(outcome.status.SuccessValue ?? "", "base64").toString() || "?"}. Transaction ${hash}.`;
     console.log(`NEAR did     ${result.split(". Transaction")[0]}${EXPLORER ? `  ${EXPLORER}${hash}` : ""}`);
-    record.push({ line, outcome: name === "pay" ? "paid" : "waiting", hash });
+    record.push({ line, outcome: method === "pay" ? "paid" : "waiting", hash });
+    // A contract paid for the first time is pinned, so a later change to its code is blocked.
+    if (method === "pay" && checked.signals.codeHash && checked.signals.codeHash !== EMPTY_CODE && !pins[to]) {
+      pins = pin(PINS, pins, to, checked.signals.codeHash);
+    }
     return result;
   } catch (error) {
     const hash = error?.transaction_outcome?.id ?? null;
@@ -168,7 +211,7 @@ const SCRIPT = [
 async function nextFromModel() {
   if (SCRIPTED) {
     const step = SCRIPT.shift();
-    return step ? { tool_calls: step } : { content: "Paid the invoice; the other payment waits for the owner." };
+    return step ? { tool_calls: step } : { content: "Done with invoice 1042." };
   }
   const apiKey = process.env.NEAR_AI_API_KEY?.trim();
   if (!apiKey) stop("Set NEAR_AI_API_KEY, or run with KYRONA_LLM=scripted.");
@@ -250,6 +293,7 @@ console.log("");
 console.log(`Paid         ${record.filter((r) => r.outcome === "paid").map((r) => r.line).join("; ") || "nothing"}`);
 console.log(`Refused      ${record.filter((r) => r.outcome === "refused").map((r) => `${r.line} (${r.why})`).join("; ") || "nothing"}`);
 console.log(`Waiting      ${record.filter((r) => r.outcome === "waiting").map((r) => r.line).join("; ") || "nothing"}`);
+console.log(`Blocked      ${record.filter((r) => r.outcome === "blocked").map((r) => `${r.line} (${r.why})`).join("; ") || "nothing"}`);
 console.log(
   toOutside.length === 0
     ? `The model did not try to pay ${OUTSIDE}. Had it tried, the contract would have refused.`

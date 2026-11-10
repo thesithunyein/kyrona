@@ -10,3 +10,4 @@ attachments
 .grok
 *.log
 .DS_Store
+.kyrona-pins.json

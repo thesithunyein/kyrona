@@ -33,3 +33,13 @@ jobs:
             echo "::error title=Type check::$(grep -E 'error TS' tsc.out | head -40 | tr '\n' '|' | cut -c1-6000)"
             exit 1
           fi
+
+  receiver-check:
+    name: Receiver check unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/risk/check.test.mjs
