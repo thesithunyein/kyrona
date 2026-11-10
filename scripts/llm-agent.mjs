@@ -32,6 +32,7 @@ const SCRIPTED = process.env.KYRONA_LLM?.trim() === "scripted";
 const NEAR_AI = "https://cloud-api.near.ai/v1/chat/completions";
 const GAS = 30_000_000_000_000n;
 const MAX_TOOL_CALLS = 6;
+const MODEL_TIMEOUT_MS = 180_000;
 const EXPLORER = RPC.includes("127.0.0.1") || RPC.includes("localhost") ? null : "https://nearblocks.io/txns/";
 
 class Stop extends Error {}
@@ -171,11 +172,26 @@ async function nextFromModel() {
   }
   const apiKey = process.env.NEAR_AI_API_KEY?.trim();
   if (!apiKey) stop("Set NEAR_AI_API_KEY, or run with KYRONA_LLM=scripted.");
-  const response = await fetch(NEAR_AI, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: "auto", temperature: 0 }),
-  });
+  const started = Date.now();
+  process.stdout.write(`model thinks  ...`);
+  const ticker = setInterval(() => process.stdout.write(`\rmodel thinks  ${Math.round((Date.now() - started) / 1000)}s`), 1000);
+  let response;
+  try {
+    response = await fetch(NEAR_AI, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: "auto", temperature: 0 }),
+      signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError") {
+      stop(`\nThe model did not answer within ${MODEL_TIMEOUT_MS / 1000}s. Try again, or set KYRONA_MODEL to a faster model.`);
+    }
+    throw error;
+  } finally {
+    clearInterval(ticker);
+    process.stdout.write(`\rmodel took    ${Math.round((Date.now() - started) / 1000)}s\n`);
+  }
   if (!response.ok) {
     const text = (await response.text()).slice(0, 300);
     const hint =
