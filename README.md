@@ -139,6 +139,13 @@ The demo shows the allowlist refusal and the payment. The lock and the daily cap
 | Deploy the second version and call `migrate`, in one transaction signed by the rules account | [95qLSSkyjkPo3RRUFMPoUKNJTYACRp8TqV9pHsfdkN3L](https://nearblocks.io/txns/95qLSSkyjkPo3RRUFMPoUKNJTYACRp8TqV9pHsfdkN3L) |
 | Storage for the larger code, from `sithunyein.near` | [3iNJ56kzGfjQBYDExRkdhQGHmu1VJyvCkzac7SCTDizf](https://nearblocks.io/txns/3iNJ56kzGfjQBYDExRkdhQGHmu1VJyvCkzac7SCTDizf), [6Z9NVtYMHGW15TU8qFzt8Kpm2mAKBfVFNrPTW7TebJuw](https://nearblocks.io/txns/6Z9NVtYMHGW15TU8qFzt8Kpm2mAKBfVFNrPTW7TebJuw) |
 
+After the upgrade, on mainnet:
+
+| What happened | Transaction |
+|---|---|
+| The agent's new limited key, which may call `pay` and `request`, asked for 0.01 NEAR to `outside.near`, an account not on the list. Nothing moved; request 0 waited on `rules.sithunyein.near`. | [5fy9LQefPpCNgHnsEhg2DMp5HaUAJb9F8KzymVKCR1CX](https://nearblocks.io/txns/5fy9LQefPpCNgHnsEhg2DMp5HaUAJb9F8KzymVKCR1CX) |
+| The owner rejected request 0 from the desk, signed by the wallet. Nothing moved. | [ASUF6ATymq88DNhqF513MJpvRk7nkgjsU9ZLAe6avGD6](https://nearblocks.io/txns/ASUF6ATymq88DNhqF513MJpvRk7nkgjsU9ZLAe6avGD6) |
+
 The account's code hash is now `9S1DZHopohawkLoLnYGDqv1MAf5HjbJD1gSehkMQSRDV`, the sha256 of `public/kyrona.wasm` as CI built and tested it. The first deploy-and-migrate attempt was refused by NEAR's storage check because it attached too much gas to `migrate`; nothing changed on chain, and the judge now starts its rules account with the same balance so that case is tested.
 
 ## Use it

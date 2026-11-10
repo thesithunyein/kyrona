@@ -83,7 +83,8 @@ export async function readChainRules(accountId: string) {
 /** Waiting requests, or null when the rules account runs the first version, which has none. */
 export async function readRequests(accountId: string) {
   try {
-    return await view<ChainRequest[]>(rulesAccount(accountId), "requests", {});
+    // The latest block, so a request just filed or decided shows at once.
+    return await view<ChainRequest[]>(rulesAccount(accountId), "requests", {}, "optimistic");
   } catch {
     return null;
   }
@@ -101,10 +102,10 @@ function yocto(amount: number) {
 
 type AccountView = { code_hash: string };
 
-async function view<T>(contract: string, method: string, args: unknown) {
+async function view<T>(contract: string, method: string, args: unknown, finality: "final" | "optimistic" = "final") {
   const result = await rpc<{ result: number[] }>("query", {
     request_type: "call_function",
-    finality: "final",
+    finality,
     account_id: contract,
     method_name: method,
     args_base64: btoa(JSON.stringify(args)),

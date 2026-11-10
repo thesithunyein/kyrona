@@ -942,6 +942,7 @@ function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; se
     try {
       await decideRequest(accountId, id, decision);
       setNote(decision === "approve" ? `Request ${id} was paid.` : `Request ${id} was dropped. Nothing moved.`);
+      setRequests((list) => (list ? list.filter((request) => request.id !== id) : list));
       onDecided();
     } catch (error) {
       setNote(plainError(error));
