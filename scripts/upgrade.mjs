@@ -81,13 +81,28 @@ const usageAfter = BigInt(account.storage_usage) - BigInt(oldCode) + BigInt(v2.l
 const needed = usageAfter * YOCTO_PER_BYTE + SPARE;
 const topUp = account.amount >= needed ? 0n : needed - account.amount;
 
+// The owner pays the top-up and a transaction fee, and must keep enough for its own storage.
+const ownerAccount = await provider.viewAccount(OWNER);
+const ownerKeeps = BigInt(ownerAccount.storage_usage) * YOCTO_PER_BYTE;
+const FEE = NEAR / 100n; // 0.01 NEAR, well above what a transfer costs
+const ownerNeeds = topUp === 0n ? 0n : topUp + FEE + ownerKeeps;
+const ownerShort = ownerNeeds > ownerAccount.amount ? ownerNeeds - ownerAccount.amount : 0n;
+
 console.log(`Rules account   ${RULES}`);
 console.log(`Now             first version ${v1Hash}, ${oldCode} bytes`);
 console.log(`After           ${v2Hash}, ${v2.length} bytes`);
 console.log(`Balance         ${near(account.amount)} NEAR; storage after the upgrade needs ${near(usageAfter * YOCTO_PER_BYTE)} NEAR, plus 0.05 spare`);
 console.log(`Top-up          ${topUp > 0n ? `${near(topUp)} NEAR from ${OWNER} to ${RULES}` : "none needed"}`);
+if (topUp > 0n) {
+  console.log(`Owner balance   ${near(ownerAccount.amount)} NEAR on ${OWNER}; the top-up, a fee and its own storage need ${near(ownerNeeds)} NEAR`);
+}
 console.log(`Rules kept      ${before.allowed.length} accounts, ${near(BigInt(before.max_per_payment))} NEAR per payment, ${near(BigInt(before.daily_cap))} NEAR a day, ${before.open ? "open" : "locked"}`);
 console.log("");
+
+if (ownerShort > 0n) {
+  console.log(`Add at least ${near(ownerShort)} NEAR to ${OWNER}, then run this again. Nothing was sent.`);
+  process.exit(SEND ? 1 : 0);
+}
 
 if (!SEND) {
   console.log("Dry run. Nothing was sent. Run again with --send to upgrade.");
