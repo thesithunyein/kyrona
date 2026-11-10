@@ -209,7 +209,8 @@ export function readGrokProjectId() {
 
 export function readGrokExtensionsEnabled() {
   const fromProcess = typeof process !== "undefined" ? process.env?.VITE_GROK_EXTENSIONS : "";
-  return String(fromProcess ?? "").trim() !== "0";
+  // Kyrona: off unless VITE_GROK_EXTENSIONS=1. The builder's script is not part of this app.
+  return String(fromProcess ?? "").trim() === "1";
 }
 
 export function readXCreator() {
