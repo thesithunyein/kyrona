@@ -156,7 +156,7 @@ try {
   const deployed = await owner
     .batch(rulesId)
     .createAccount()
-    .transfer(near(10))
+    .transfer(near(0.95)) // about what rules.sithunyein.near held, so the upgrade must top it up
     .addKey(ownerKey.getPublicKey())
     .deployContract(readFileSync(V1_WASM))
     .functionCall("new", rulesArgs(true, [alice.accountId]), { gas: 100n * TGAS })
@@ -212,6 +212,9 @@ try {
     if (upgraded.failed) throw new Error(`Upgrade failed: ${JSON.stringify(upgraded.Failure)}`);
   }
   const after = await rules.view("rules");
+  // The payments below need NEAR that is not locked for storage.
+  const funded = await owner.batch(rules).transfer(near(5)).transact();
+  if (funded.failed) throw new Error(`Funding the rules account failed: ${JSON.stringify(funded.Failure)}`);
   const kept = ["owner", "max_per_payment", "daily_cap", "open", "spent"].every((k) => after[k] === before[k]) &&
     JSON.stringify(after.allowed) === JSON.stringify(before.allowed) && after.waiting === 0;
   if (!kept) failures += 1;

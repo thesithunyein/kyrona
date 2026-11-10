@@ -24,8 +24,14 @@ const RPC = process.env.KYRONA_RPC?.trim() || "https://free.rpc.fastnear.com";
 const SEND = process.argv.includes("--send");
 const YOCTO_PER_BYTE = 10n ** 19n; // NEAR storage staking: 1 NEAR per 100 kB
 const NEAR = 10n ** 24n;
-const SPARE = NEAR / 20n; // 0.05 NEAR left over for payouts and future state
+const SPARE = NEAR / 50n; // 0.02 NEAR left over for payouts and future state
 const TGAS = 10n ** 12n;
+const MIGRATE_GAS = 20n * TGAS; // migrate reads and rewrites a few hundred bytes
+const DEPLOY_GAS = 20n * TGAS; // the deploy action itself, for about 126 kB, rounded up
+// Before NEAR checks that an account can pay for its storage, it holds back the gas the
+// transaction may still burn, priced pessimistically (about 10 times the gas price on mainnet).
+// The upgrade budgets 15 times, so the storage check cannot fall short.
+const GAS_PRICE_MULTIPLE = 15n;
 
 const v1 = readFileSync(new URL("../contract/v1/kyrona-v1.wasm", import.meta.url));
 const v2 = readFileSync(new URL("../public/kyrona.wasm", import.meta.url));
@@ -78,7 +84,9 @@ if (account.code_hash !== v1Hash) {
 const before = await provider.callFunction(RULES, "rules", {});
 const oldCode = (await provider.viewContractCode(RULES)).code.length;
 const usageAfter = BigInt(account.storage_usage) - BigInt(oldCode) + BigInt(v2.length);
-const needed = usageAfter * YOCTO_PER_BYTE + SPARE;
+const gasPrice = BigInt((await provider.gasPrice(null)).gas_price);
+const gasHeld = (MIGRATE_GAS + DEPLOY_GAS) * gasPrice * GAS_PRICE_MULTIPLE;
+const needed = usageAfter * YOCTO_PER_BYTE + SPARE + gasHeld;
 const topUp = account.amount >= needed ? 0n : needed - account.amount;
 
 // The owner pays the top-up and a transaction fee, and must keep enough for its own storage.
@@ -91,7 +99,7 @@ const ownerShort = ownerNeeds > ownerAccount.amount ? ownerNeeds - ownerAccount.
 console.log(`Rules account   ${RULES}`);
 console.log(`Now             first version ${v1Hash}, ${oldCode} bytes`);
 console.log(`After           ${v2Hash}, ${v2.length} bytes`);
-console.log(`Balance         ${near(account.amount)} NEAR; storage after the upgrade needs ${near(usageAfter * YOCTO_PER_BYTE)} NEAR, plus 0.05 spare`);
+console.log(`Balance         ${near(account.amount)} NEAR; storage after the upgrade needs ${near(usageAfter * YOCTO_PER_BYTE)} NEAR, plus ${near(gasHeld)} held for gas and 0.02 spare`);
 console.log(`Top-up          ${topUp > 0n ? `${near(topUp)} NEAR from ${OWNER} to ${RULES}` : "none needed"}`);
 if (topUp > 0n) {
   console.log(`Owner balance   ${near(ownerAccount.amount)} NEAR on ${OWNER}; the top-up, a fee and its own storage need ${near(ownerNeeds)} NEAR`);
@@ -122,7 +130,7 @@ if (topUp > 0n) {
 const rules = new Account(RULES, provider, signer);
 const upgraded = await rules.signAndSendTransaction({
   receiverId: RULES,
-  actions: [actionCreators.deployContract(new Uint8Array(v2)), actionCreators.functionCall("migrate", {}, 100n * TGAS, 0n)],
+  actions: [actionCreators.deployContract(new Uint8Array(v2)), actionCreators.functionCall("migrate", {}, MIGRATE_GAS, 0n)],
   throwOnFailure: true,
 });
 console.log(`Upgraded: https://nearblocks.io/txns/${upgraded.transaction.hash}`);
