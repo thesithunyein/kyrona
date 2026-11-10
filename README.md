@@ -120,7 +120,7 @@ Open this first: [0.01 NEAR sent by `scripts/agent.mjs` to `kyawminthat.near`](h
 
 That program is not the website. Before paying, it was refused for `outside.near`, and it was refused when it tried to transfer. The same limited key then called `pay`. `kyawminthat.near` now holds 0.02 NEAR: 0.01 from the page, then 0.01 from the script. The earlier page payment is [5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR](https://nearblocks.io/txns/5QP4MsGyTzHjMUSPoMGC8bdEkz6dhsj9YL6j2Y2NUTLR).
 
-`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 0.74 NEAR stays locked for the code. The rest can be paid out. The contract has recorded 0.04 NEAR spent.
+`rules.sithunyein.near` is on mainnet. The owner is `sithunyein.near`. The list is `sithunyein.near`, `vendor.sithunyein.near`, and `kyawminthat.near`. The caps are 20 NEAR per payment and 50 NEAR a day. The lock is open. About 1.26 NEAR stays locked for the code. The rest can be paid out. The contract has recorded 0.04 NEAR spent.
 
 | What the limited key tried | Result |
 |---|---|
@@ -132,7 +132,14 @@ That program is not the website. Before paying, it was refused for `outside.near
 
 The demo shows the allowlist refusal and the payment. The lock and the daily cap are not in the video; both are part of the same `pay` call and are covered by tests in [`contract/src/lib.rs`](https://github.com/thesithunyein/kyrona/blob/main/contract/src/lib.rs) and by `npm run judge`.
 
-`rules.sithunyein.near` still runs the first version, which has no requests. The second version in `contract/src` keeps every rule above and adds `request`, `approve` and `reject`; `scripts/upgrade.mjs` moves an account to it in place, and the judge rehearses that upgrade on every push.
+`rules.sithunyein.near` runs the second version, upgraded in place on 10 November 2026 with `scripts/upgrade.mjs`. The upgrade kept the owner, the list, both caps, the lock and the 0.04 NEAR already spent, and added `request`, `approve` and `reject`.
+
+| Upgrade step | Transaction |
+|---|---|
+| Deploy the second version and call `migrate`, in one transaction signed by the rules account | [95qLSSkyjkPo3RRUFMPoUKNJTYACRp8TqV9pHsfdkN3L](https://nearblocks.io/txns/95qLSSkyjkPo3RRUFMPoUKNJTYACRp8TqV9pHsfdkN3L) |
+| Storage for the larger code, from `sithunyein.near` | [3iNJ56kzGfjQBYDExRkdhQGHmu1VJyvCkzac7SCTDizf](https://nearblocks.io/txns/3iNJ56kzGfjQBYDExRkdhQGHmu1VJyvCkzac7SCTDizf), [6Z9NVtYMHGW15TU8qFzt8Kpm2mAKBfVFNrPTW7TebJuw](https://nearblocks.io/txns/6Z9NVtYMHGW15TU8qFzt8Kpm2mAKBfVFNrPTW7TebJuw) |
+
+The account's code hash is now `9S1DZHopohawkLoLnYGDqv1MAf5HjbJD1gSehkMQSRDV`, the sha256 of `public/kyrona.wasm` as CI built and tested it. The first deploy-and-migrate attempt was refused by NEAR's storage check because it attached too much gas to `migrate`; nothing changed on chain, and the judge now starts its rules account with the same balance so that case is tested.
 
 ## Use it
 
