@@ -1,0 +1,25 @@
+name: Judge
+
+# Runs `npm run judge` on a clean machine: the rules contract on a local NEAR sandbox,
+# attacked with the agent's limited key. No secrets are used.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  judge:
+    name: Judge run on a local sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: npm run judge
+        run: npm run judge

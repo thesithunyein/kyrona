@@ -1,0 +1,16 @@
+{
+  "name": "kyrona-judge",
+  "private": true,
+  "type": "module",
+  "description": "Runs Kyrona's rules contract on a local NEAR sandbox and tries to break it with the agent's limited key. No wallet, no keys, no funds.",
+  "scripts": {
+    "judge": "node run.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "near-api-js": "5.1.1",
+    "near-workspaces": "5.0.0"
+  }
+}

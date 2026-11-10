@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/network-NEAR%20mainnet-003834" alt="NEAR mainnet">
   <a href="https://nearblocks.io/address/rules.sithunyein.near"><img src="https://img.shields.io/badge/rules-rules.sithunyein.near-003834" alt="Rules account"></a>
   <a href="https://github.com/thesithunyein/kyrona/actions/workflows/ci.yml"><img src="https://github.com/thesithunyein/kyrona/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/thesithunyein/kyrona/actions/workflows/judge.yml"><img src="https://github.com/thesithunyein/kyrona/actions/workflows/judge.yml/badge.svg" alt="Judge run"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-003834" alt="MIT license"></a>
 </p>
 
@@ -77,6 +78,29 @@ The checks, in order:
 | Balance | The chain balance covers it |
 
 On the rules account, `pay` repeats the lock, the list, and both caps. USDC does not go through `pay`.
+
+## Check it yourself, no wallet
+
+```
+npm run judge
+```
+
+This starts a local NEAR node (nearcore 2.14.0, downloaded on the first run), deploys `public/kyrona.wasm` the same way the desk does, and gives an agent a key that may only call `pay`. Then the agent tries to break the rules. No wallet, no keys and no funds are needed. It needs Node 20 or newer on Linux x86_64 or Apple Silicon macOS; on Windows, run it in WSL.
+
+What you should see (the run exits 1 if any line differs):
+
+| The agent tries | Result |
+|---|---|
+| pay 1 NEAR to an account on the list | paid |
+| pay 0.5 NEAR to a stranger, as a prompt-injected invoice asked | refused by the contract: `Not on the list` |
+| pay 2.5 NEAR, over the 2 NEAR per-payment cap | refused by the contract: `Over the per-payment cap` |
+| pay 1.5 NEAR, then 1 NEAR more the same day | the first is paid; the second is refused: `Over the daily cap` |
+| transfer NEAR directly with its own key | refused by NEAR: `RequiresFullAccess` |
+| call `set_rules` to add the stranger to the list | refused by NEAR: `MethodNameMismatch` |
+| add a full-access key for itself | refused by NEAR: `RequiresFullAccess` |
+| pay after the owner locks spending | refused by the contract: `Spending is locked` |
+
+At the end the run checks the balances: the listed account received 2.5 NEAR, the stranger received nothing, and the contract records 2.5 NEAR spent. The [Judge run](https://github.com/thesithunyein/kyrona/actions/workflows/judge.yml) workflow runs the same command on a clean machine on every push. The script is [`judge/run.mjs`](judge/run.mjs).
 
 ## Proof
 
