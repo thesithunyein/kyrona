@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/logo.png" width="96" alt="Kyrona">
+  <img src="docs/logo.png" width="96" alt="Kyrona">
 </p>
 
 <h1 align="center">Kyrona</h1>
@@ -333,11 +333,13 @@ kyrona
 │   └── v1/kyrona-v1.wasm          The first version, the exact code on rules.sithunyein.near
 ├── public
 │   ├── kyrona.wasm                The contract the desk deploys, 126,027 bytes, built by CI
-│   ├── logo.png
-│   ├── favicon.png
+│   ├── logo.png                   The logo inside the app
+│   ├── favicon.png                The browser tab icon
+│   ├── icon.png
 │   ├── favicon.svg
 │   └── og.jpg
 ├── docs
+│   ├── logo.png                   The README logo
 │   └── desk.png                   The desk, connected to sithunyein.near
 ├── .github/workflows
 │   ├── ci.yml                     Contract tests, type check, receiver check, a reviewer's first commands
