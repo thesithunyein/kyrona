@@ -130,7 +130,7 @@ To use the desk:
 
 ## The other project
 
-This is the first project. The second is [Hasp](https://github.com/thesithunyein/hasp), a one-shot swap to USDC that refuses an amount over 0.02 NEAR before it asks for a quote. Hasp has no contract and no key. It does not use `rules.sithunyein.near`, the limited key, or this desk. The two do not share code.
+This is the first project. The second is [Hasp](https://github.com/thesithunyein/hasp), a one-shot swap to USDC that refuses an amount over 0.02 NEAR before it asks for a quote. Hasp has no contract and no key. It does not use `rules.sithunyein.near`, the limited key, or this desk. The two share no product code. Both repositories started from the same Grok App Builder shell, so those generated files are identical in each; the contract, the desk and the agent here are Kyrona's alone.
 
 ## In the code
 
@@ -181,7 +181,7 @@ A newer SDK imported host functions this network does not provide. The contract 
 
 ## Built with
 
-Written for this hackathon. No earlier product was reused. The desk is TanStack Start, React, and Vite. Wallets are Meteor and MyNearWallet through `@near-wallet-selector`. The contract is Rust and `near-sdk` 5.17, pinned so it links on current mainnet. `scripts/agent.mjs` uses `@near-js`.
+Written for this hackathon, from 1 November 2026. The app shell (TanStack Start, React, Vite, the auth and preview wiring under `src/lib/auth`, `src/lib/app-data`, `server/` and most of `scripts/`) came from a Grok App Builder export and is in the first commit, `8ba0acc`. Everything Kyrona does is new: `contract/`, `src/lib/kyrona/`, `src/routes/index.tsx` and `scripts/agent.mjs`. Parts of the code were written with AI assistance. Wallets are Meteor and MyNearWallet through `@near-wallet-selector`. The contract is Rust and `near-sdk` 5.17, pinned so it links on current mainnet. `scripts/agent.mjs` uses `@near-js`.
 
 ## Run the agent
 
