@@ -17,8 +17,7 @@
  * `"false" !== "false"` away, so the built client JS carries no marker to
  * compare against unless the app is made to emit one.
  *
- * `scripts/browser-smoke.mjs` runs the comparison on every smoke; run it
- * standalone against a live dev server with `npm run check:auth` (exit 0 agree,
+ * Run it against a live dev server with `npm run check:auth` (exit 0 agree,
  * 1 diverged, 2 could not observe). Callers comparing the flag should use
  * `compareAuthInvariant()` rather than re-deriving it.
  */
