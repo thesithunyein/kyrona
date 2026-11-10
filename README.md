@@ -172,6 +172,24 @@ npm run check-receiver -- kyawminthat.near            # the verdict, with reason
 npm run check-receiver -- some-contract.near --pin    # record a contract's code you approve
 ```
 
+On mainnet, from a Windows PC (10 Nov):
+
+```text
+> node scripts/check-receiver.mjs kyawminthat.near
+kyawminthat.near  ALLOW
+> node scripts/check-receiver.mjs outside.near
+outside.near  ALLOW
+```
+
+No "age not checked" note, so NearBlocks answered: both accounts are older than 7 days and hold no contract. `outside.near` passing is correct. The check asks whether a receiver looks risky, not whether the owner chose it; the on-chain list answers that, which is why the hijacked agent's 5 NEAR to `outside.near` was still refused with "Not on the list". Each layer covers what the one before cannot:
+
+| Layer | Where it runs | Stops |
+|---|---|---|
+| Receiver check | off-chain, before signing | accounts that do not exist, are days old, are blocklisted, or whose contract was swapped |
+| List, per-payment cap, daily cap, lock | the contract | anyone the owner did not list, and amounts over the caps |
+| Function-call key | the NEAR protocol | the agent approving, changing rules, or transferring directly |
+| The owner on the desk | a wallet | anything outside the rules waits for a yes or a no |
+
 The blocklist ships empty: no account is listed without evidence a reader can check. The verdict logic has its own tests, `node --test scripts/risk/check.test.mjs`, and the judge runs every verdict against the local node.
 
 ## Proof
