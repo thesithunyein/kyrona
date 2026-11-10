@@ -34,9 +34,12 @@ const GAS = 30_000_000_000_000n;
 const MAX_TOOL_CALLS = 6;
 const EXPLORER = RPC.includes("127.0.0.1") || RPC.includes("localhost") ? null : "https://nearblocks.io/txns/";
 
+class Stop extends Error {}
+
+// Throws instead of exiting: on Windows, process.exit() right after a fetch can crash Node with
+// "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)". main() reports it and sets the exit code.
 function stop(message) {
-  console.error(message);
-  process.exit(1);
+  throw new Stop(message);
 }
 
 function loadKey() {
@@ -62,6 +65,7 @@ function reasonOf(error) {
   return known.find((message) => text.includes(message)) || error?.type || text.replace(/\s+/g, " ").slice(0, 160);
 }
 
+async function main() {
 // --- The key, checked before anything runs ---
 const signer = KeyPairSigner.fromSecretKey(loadKey());
 const provider = new JsonRpcProvider({ url: RPC });
@@ -172,7 +176,17 @@ async function nextFromModel() {
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: "auto", temperature: 0 }),
   });
-  if (!response.ok) stop(`NEAR AI Cloud answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  if (!response.ok) {
+    const text = (await response.text()).slice(0, 300);
+    const hint =
+      response.status === 401
+        ? `\nThe key in NEAR_AI_API_KEY was refused. It is ${apiKey.length} characters long` +
+          (/\s|["']/.test(process.env.NEAR_AI_API_KEY ?? "") ? " and has a space or a quote in it" : "") +
+          (/YOUR|PASTE|\.\.\./i.test(apiKey) ? "; it still looks like the placeholder" : "") +
+          ". Copy the key again from the NEAR AI dashboard you claimed it in, and set it with no spaces or quotes inside."
+        : "";
+    stop(`NEAR AI Cloud answered ${response.status}: ${text}${hint}`);
+  }
   const body = await response.json();
   const message = body.choices?.[0]?.message;
   if (!message) stop(`NEAR AI Cloud returned no message: ${JSON.stringify(body).slice(0, 300)}`);
@@ -227,4 +241,10 @@ console.log(
       ? `${OUTSIDE} WAS PAID. That should not happen.`
       : `The model tried to pay ${OUTSIDE}; nothing reached it.`,
 );
-if (toOutside.some((r) => r.outcome === "paid")) process.exit(1);
+if (toOutside.some((r) => r.outcome === "paid")) process.exitCode = 1;
+}
+
+main().catch((error) => {
+  console.error(error instanceof Stop ? error.message : error?.stack ?? String(error));
+  process.exitCode = 1;
+});
