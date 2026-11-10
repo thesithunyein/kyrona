@@ -335,7 +335,6 @@ kyrona
 │   ├── kyrona.wasm                The contract the desk deploys, 126,027 bytes, built by CI
 │   ├── logo.png                   The logo inside the app
 │   ├── favicon.png                The browser tab icon
-│   ├── icon.png
 │   ├── favicon.svg
 │   └── og.jpg
 ├── docs
