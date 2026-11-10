@@ -43,3 +43,38 @@ jobs:
         with:
           node-version: 22
       - run: node --test scripts/risk/check.test.mjs
+
+  screener:
+    name: What a reviewer runs after cloning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: npm test
+        run: |
+          if ! npm test > test.out 2>&1; then
+            echo "::error title=npm test::$(grep -E 'not ok|Error|error' test.out | head -30 | tr '\n' '|' | cut -c1-6000)"
+            exit 1
+          fi
+          echo "::notice title=npm test::$(grep -E '^# (tests|pass|fail)' test.out | tr '\n' ' ')"
+      - name: npm run build
+        run: |
+          if ! npm run build > build.out 2>&1; then
+            echo "::error title=npm run build::$(tail -30 build.out | tr '\n' '|' | cut -c1-6000)"
+            exit 1
+          fi
+      - name: npm run dev answers on 127.0.0.1:8080
+        run: |
+          npm run dev > dev.out 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o page.html http://127.0.0.1:8080/; then break; fi
+            sleep 2
+          done
+          if ! grep -qi kyrona page.html; then
+            echo "::error title=npm run dev::$(tail -30 dev.out | tr '\n' '|' | cut -c1-6000)"
+            exit 1
+          fi
+          echo "::notice title=npm run dev::the desk answered on http://127.0.0.1:8080 ($(wc -c < page.html) bytes)"
