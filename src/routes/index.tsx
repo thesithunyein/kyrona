@@ -969,14 +969,18 @@ function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; se
             <p className="font-medium">
               {nearLabel(request.amount)} NEAR to <span className="break-all">{request.to}</span>
             </p>
-            {request.note && <p className="text-muted">{request.note}</p>}
+            {request.note && (
+              <p className="text-muted">
+                <span className="font-medium">The agent's note, not checked:</span> {request.note}
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
-            <button type="button" disabled={busy !== null} className="btn btn-ink" onClick={() => decide(request.id, "approve")}>
-              {busy === request.id ? "Waiting for the wallet" : "Approve"}
+            <button type="button" disabled={busy !== null} className="btn btn-ink" onClick={() => decide(request.id, "reject")}>
+              {busy === request.id ? "Waiting for the wallet" : "Reject"}
             </button>
-            <button type="button" disabled={busy !== null} className="btn btn-quiet" onClick={() => decide(request.id, "reject")}>
-              Reject
+            <button type="button" disabled={busy !== null} className="btn btn-quiet" onClick={() => decide(request.id, "approve")}>
+              Approve, sends it
             </button>
           </div>
         </div>
