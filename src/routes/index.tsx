@@ -21,9 +21,57 @@ export const Route = createFileRoute("/")({ component: Home });
 
 type Tab = "desk" | "pay" | "rules" | "ledger";
 
+// Fired after a request is filed, approved or rejected, so every count on the page refreshes.
+const REQUESTS_CHANGED = "kyrona:requests";
+
+function announceRequests() {
+  window.dispatchEvent(new Event(REQUESTS_CHANGED));
+}
+
+/** How many requests wait on rules.<account>, read from the chain every 30 seconds. */
+function useWaitingCount(accountId: string | null) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!accountId) {
+      setCount(0);
+      return;
+    }
+    let current = true;
+    const load = () => {
+      readRequests(accountId)
+        .then((list) => current && setCount(list?.length ?? 0))
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 30_000);
+    window.addEventListener(REQUESTS_CHANGED, load);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+      window.removeEventListener(REQUESTS_CHANGED, load);
+    };
+  }, [accountId]);
+  return count;
+}
+
+function TabLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      {count > 0 && (
+        <span className="nums inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold leading-5 text-white" aria-label={`${count} waiting`}>
+          {count}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function Home() {
   const [tab, setTab] = useState<Tab>("desk");
   const [launch, setLaunch] = useState<"show" | "leave" | "gone">("show");
+  const accountId = useDesk((s) => s.accountId);
+  const waiting = useWaitingCount(accountId);
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -53,9 +101,9 @@ function Home() {
   return (
     <div className="min-h-dvh bg-bg text-fg">
       {launch !== "gone" && <Launch leaving={launch === "leave"} />}
-      <Header tab={tab} onTab={setTab} />
+      <Header tab={tab} onTab={setTab} waiting={waiting} />
       <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 sm:pb-16 sm:pt-8">
-        {tab === "desk" && <Desk onPay={() => setTab("pay")} onRules={() => setTab("rules")} />}
+        {tab === "desk" && <Desk waiting={waiting} onPay={() => setTab("pay")} onRules={() => setTab("rules")} />}
         {tab === "pay" && <Pay />}
         {tab === "rules" && <Rules />}
         {tab === "ledger" && <Ledger />}
@@ -70,7 +118,7 @@ function Home() {
           ] as const
         ).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setTab(id)} className={tab === id ? "text-fg" : "text-muted"}>
-            {label}
+            <TabLabel label={label} count={id === "desk" ? waiting : 0} />
           </button>
         ))}
       </nav>
@@ -95,7 +143,7 @@ function Launch({ leaving }: { leaving: boolean }) {
   );
 }
 
-function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+function Header({ tab, onTab, waiting }: { tab: Tab; onTab: (t: Tab) => void; waiting: number }) {
   const kill = useDesk((s) => s.rules.killSwitch);
   const setRules = useDesk((s) => s.setRules);
   const accountId = useDesk((s) => s.accountId);
@@ -154,7 +202,7 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
               onClick={() => onTab(item.id)}
               className={`rounded-full px-3.5 py-1.5 text-sm ${tab === item.id ? "bg-fg text-bg" : "text-muted hover:text-fg"}`}
             >
-              {item.label}
+              <TabLabel label={item.label} count={item.id === "desk" ? waiting : 0} />
             </button>
           ))}
         </nav>
@@ -162,19 +210,21 @@ function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
         <button
           type="button"
           onClick={() => setRules({ killSwitch: !kill })}
+          title={kill ? "Spending is locked. Click to open it." : "Spending is open. Click to lock every payment."}
+          aria-pressed={kill}
           className={`inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-xs font-medium ${
-            kill ? "bg-danger/15 text-danger" : "bg-raised text-muted"
+            kill ? "bg-danger/15 text-danger" : "bg-raised text-fg hover:shadow-[inset_0_0_0_1px_var(--color-fg)]"
           }`}
         >
           <span className={`size-1.5 rounded-full ${kill ? "bg-danger" : "bg-ok"}`} />
-          {kill ? "Locked" : "Open"}
+          {kill ? "Locked · open it" : "Open · lock it"}
         </button>
       </div>
     </header>
   );
 }
 
-function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
+function Desk({ waiting, onPay, onRules }: { waiting: number; onPay: () => void; onRules: () => void }) {
   const balances = useDesk((s) => s.balances);
   const setBalances = useDesk((s) => s.setBalances);
   const rules = useDesk((s) => s.rules);
@@ -186,6 +236,7 @@ function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
   const [usdc, setUsdc] = useState(String(balances.usdc || ""));
   const [near, setNear] = useState(String(balances.near || ""));
   const [chainError, setChainError] = useState("");
+  const [decided, setDecided] = useState("");
 
   useEffect(() => {
     if (!accountId) return;
@@ -212,6 +263,24 @@ function Desk({ onPay, onRules }: { onPay: () => void; onRules: () => void }) {
 
   return (
     <div className="rise grid gap-8">
+      {accountId && waiting > 0 && (
+        <section className="card p-5 shadow-[inset_0_0_0_1.5px_var(--color-danger)]">
+          <p className="kicker">Waiting for you</p>
+          <h2 className="display mt-2 text-2xl">
+            {waiting === 1 ? "The agent is asking to pay someone outside your rules." : `The agent is asking for ${waiting} payments outside your rules.`}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted">Nothing moves until you decide. The note is the agent's own words; check the account before you approve.</p>
+          <WaitingRequests accountId={accountId} seen={waiting} onDecided={setDecided} compact />
+        </section>
+      )}
+      {decided && waiting === 0 && (
+        <section className="card flex items-center justify-between gap-3 p-4 text-sm">
+          <p>{decided}</p>
+          <button type="button" className="text-xs text-muted underline" onClick={() => setDecided("")}>
+            Close
+          </button>
+        </section>
+      )}
       <section className="grid items-center gap-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div>
           <p className="kicker">Desk</p>
@@ -554,10 +623,12 @@ function Rules() {
         <p className="kicker">Limits</p>
         <h1 className="display mt-3 text-4xl">The limits.</h1>
         <div className="mt-6 grid gap-4">
-          <NumberField asset="USDC" label="Max per payment" value={rules.maxUsdc} onChange={(n) => setRules({ maxUsdc: n })} />
-          <NumberField asset="USDC" label="Per day" value={rules.dailyUsdc} onChange={(n) => setRules({ dailyUsdc: n })} />
-          <NumberField asset="NEAR" label="Max per payment" value={rules.maxNear} onChange={(n) => setRules({ maxNear: n })} />
-          <NumberField asset="NEAR" label="Per day" value={rules.dailyNear} onChange={(n) => setRules({ dailyNear: n })} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberField asset="NEAR" label="NEAR per payment" value={rules.maxNear} onChange={(n) => setRules({ maxNear: n })} />
+            <NumberField asset="NEAR" label="NEAR per day" value={rules.dailyNear} onChange={(n) => setRules({ dailyNear: n })} />
+            <NumberField asset="USDC" label="USDC per payment" value={rules.maxUsdc} onChange={(n) => setRules({ maxUsdc: n })} />
+            <NumberField asset="USDC" label="USDC per day" value={rules.dailyUsdc} onChange={(n) => setRules({ dailyUsdc: n })} />
+          </div>
           <div className="flex gap-2">
             {(["USDC", "NEAR"] as Asset[]).map((asset) => {
               const on = rules.allowedAssets.includes(asset);
@@ -569,7 +640,7 @@ function Rules() {
                 className={`chip ${on ? "bg-surface text-fg shadow-[inset_0_0_0_1.5px_var(--color-fg)]" : "btn-quiet"}`}
                 >
                   <AssetMark asset={asset} />
-                  {on ? "On" : "Off"}
+                  {on ? `${asset} allowed` : `${asset} off`}
                 </button>
               );
             })}
@@ -803,6 +874,7 @@ function OnChain() {
       setLive(await contractLive(accountId).catch(() => live));
       setHeld(limitedKeyStored(accountId));
       setSeen((value) => value + 1);
+      announceRequests();
     } catch (error) {
       setNote(plainError(error));
     } finally {
@@ -878,7 +950,7 @@ function OnChain() {
       </div>
       {live === true && accountId && (
         <div className="mt-5 grid gap-2">
-          <p className="text-sm font-medium">The three proofs</p>
+          <p className="text-sm font-medium">Try it in four steps</p>
           <button
             type="button"
             disabled={busy}
@@ -899,7 +971,7 @@ function OnChain() {
           <button type="button" disabled={busy} className="btn btn-quiet" onClick={() => run(() => fundRules(accountId), "0.2 NEAR was added. That is what this account can spare.")}>
             {busy ? "Waiting for the wallet" : "2. Add 0.2 NEAR"}
           </button>
-          <button type="button" disabled={busy || !held} className="btn btn-ink" onClick={() => run(() => runAgent(accountId), "")}>
+          <button type="button" disabled={busy || !held} className="btn btn-quiet" onClick={() => run(() => runAgent(accountId), "")}>
             {busy ? "The agent is paying" : "3. Run the agent"}
           </button>
           <button
@@ -923,7 +995,7 @@ function OnChain() {
   );
 }
 
-function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; seen: number; onDecided: () => void }) {
+function WaitingRequests({ accountId, seen, onDecided, compact = false }: { accountId: string; seen: number; onDecided: (message: string) => void; compact?: boolean }) {
   const [requests, setRequests] = useState<ChainRequest[] | null | undefined>(undefined);
   const [busy, setBusy] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -941,9 +1013,11 @@ function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; se
     setNote("");
     try {
       await decideRequest(accountId, id, decision);
-      setNote(decision === "approve" ? `Request ${id} was paid.` : `Request ${id} was dropped. Nothing moved.`);
+      const message = decision === "approve" ? `Request ${id} was paid.` : `Request ${id} was dropped. Nothing moved.`;
+      setNote(message);
       setRequests((list) => (list ? list.filter((request) => request.id !== id) : list));
-      onDecided();
+      onDecided(message);
+      announceRequests();
     } catch (error) {
       setNote(plainError(error));
     } finally {
@@ -952,6 +1026,7 @@ function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; se
   }
 
   if (requests === undefined) return null;
+  if (compact && (requests === null || requests.length === 0)) return note ? <p className="mt-4 text-sm text-muted">{note}</p> : null;
   if (requests === null) {
     return (
       <p className="mt-5 text-sm text-muted">
@@ -961,7 +1036,7 @@ function WaitingRequests({ accountId, seen, onDecided }: { accountId: string; se
   }
   return (
     <div className="mt-5 grid gap-2">
-      <p className="text-sm font-medium">Waiting for you</p>
+      {!compact && <p className="text-sm font-medium">Waiting for you</p>}
       {requests.length === 0 && <p className="text-sm text-muted">Nothing is waiting. When the agent asks for a payment outside the rules, it shows here.</p>}
       {requests.map((request) => (
         <div key={request.id} className="card flex flex-wrap items-center justify-between gap-3 p-3">
