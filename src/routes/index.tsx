@@ -989,8 +989,17 @@ function OnChain() {
           </button>
         </div>
       )}
-      {live === true && accountId && <WaitingRequests accountId={accountId} seen={seen} onDecided={() => setSeen((value) => value + 1)} />}
       {note && <p className="mt-3 text-sm text-muted">{note}</p>}
+      {live === true && accountId && (
+        <WaitingRequests
+          accountId={accountId}
+          seen={seen}
+          onDecided={() => {
+            setNote("");
+            setSeen((value) => value + 1);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -1037,7 +1046,7 @@ function WaitingRequests({ accountId, seen, onDecided, compact = false }: { acco
   return (
     <div className="mt-5 grid gap-2">
       {!compact && <p className="text-sm font-medium">Waiting for you</p>}
-      {requests.length === 0 && <p className="text-sm text-muted">Nothing is waiting. When the agent asks for a payment outside the rules, it shows here.</p>}
+      {requests.length === 0 && !note && <p className="text-sm text-muted">Nothing is waiting. When the agent asks for a payment outside the rules, it shows here.</p>}
       {requests.map((request) => (
         <div key={request.id} className="card flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="min-w-0 text-sm">
